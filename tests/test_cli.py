@@ -1,8 +1,10 @@
 import pytest
 from typer.testing import CliRunner
-from work_time_logger import db, cli
+
+from work_time_logger import cli, db
 
 runner = CliRunner()
+
 
 @pytest.fixture(autouse=True)
 def setup_test_db(tmp_path):
@@ -14,6 +16,7 @@ def setup_test_db(tmp_path):
     db.init_db()
     yield
 
+
 def test_project_add_and_list():
     result = runner.invoke(cli.app, ["project", "add", "-n", "Test Project CLI"])
     assert result.exit_code == 0
@@ -22,6 +25,7 @@ def test_project_add_and_list():
     result2 = runner.invoke(cli.app, ["project", "list"])
     assert result2.exit_code == 0
     assert "Test Project CLI" in result2.stdout
+
 
 def test_start_unassigned_from_cli():
     # Ensure starting unassigned works
@@ -39,6 +43,7 @@ def test_start_unassigned_from_cli():
     result = runner.invoke(cli.app, ["stop"])
     assert result.exit_code == 0
     assert "Stopped current job tracking" in result.stdout
+
 
 def test_start_fail_without_unassigned_flag():
     # If no project/job is provided and --unassigned is NOT passed, it should fail

@@ -1,18 +1,18 @@
 import sqlite3
-import os
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 
 DB_DIR = Path.home() / ".wtl"
 DB_PATH = DB_DIR / "db.sqlite3"
 
+
 def init_db():
     if not DB_DIR.exists():
         DB_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     with get_connection() as conn:
         cursor = conn.cursor()
-        
+
         # Projects Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS projects (
@@ -20,7 +20,7 @@ def init_db():
                 name TEXT UNIQUE NOT NULL
             )
         """)
-        
+
         # Jobs Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS jobs (
@@ -32,7 +32,7 @@ def init_db():
                 FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
             )
         """)
-        
+
         # Logs Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS logs (
@@ -46,8 +46,9 @@ def init_db():
                 FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE
             )
         """)
-        
+
         conn.commit()
+
 
 @contextmanager
 def get_connection():
