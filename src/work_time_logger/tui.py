@@ -137,7 +137,7 @@ class WtlApp(App):
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle Enter key on the Tree."""
-        if event.node.is_leaf:
+        if not event.node.allow_expand:
             job_name = str(event.node.label)
             project_name = str(event.node.parent.label)
             
@@ -155,7 +155,7 @@ class WtlApp(App):
 
     def action_start_job(self) -> None:
         # If the user is focused on the tree and a leaf node is selected, start that job.
-        if self.focused == self.projects_tree and self.projects_tree.cursor_node and self.projects_tree.cursor_node.is_leaf:
+        if self.focused == self.projects_tree and self.projects_tree.cursor_node and not self.projects_tree.cursor_node.allow_expand:
             job_name = str(self.projects_tree.cursor_node.label)
             project_name = str(self.projects_tree.cursor_node.parent.label)
             
