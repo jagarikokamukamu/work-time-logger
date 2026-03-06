@@ -1,0 +1,54 @@
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
+Error in _commit_log_update:
+Traceback (most recent call last):
+  File "C:\Users\jagar\workspace\work-time-logger\src\work_time_logger\tui.py", line 331, in _commit_log_update
+    self.notify("Log updated successfully!", variant="success")
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: App.notify() got an unexpected keyword argument 'variant'
