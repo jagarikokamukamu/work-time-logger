@@ -1,3 +1,5 @@
+"""Textual user interface for Work Time Logger."""
+
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -126,11 +128,19 @@ class WtlApp(App):
         # Populate Logs table
         self.logs_table.clear()
         logs = operations.list_logs()
-        for l in logs:
-            p_name = l["project_name"] if l["project_name"] else "[未割り当て]"
-            j_name = l["job_name"] if l["job_name"] else "[未割り当て]"
-            end_time = l["end_time"][:19] if l["end_time"] else "Running..."
-            self.logs_table.add_row(p_name, j_name, l["start_time"][:19], end_time)
+        for log_entry in logs:
+            p_name = log_entry["project_name"] or "[未割り当て]"
+            j_name = log_entry["job_name"] or "[未割り当て]"
+            end_time = (
+                log_entry["end_time"][:19] if log_entry["end_time"] else "Running..."
+            )
+            self.logs_table.add_row(
+                str(log_entry["id"]),
+                p_name,
+                j_name,
+                log_entry["start_time"][:19],
+                end_time,
+            )
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle Enter key on the Tree."""
@@ -154,7 +164,7 @@ class WtlApp(App):
             self.start_timer_for_selection((project_name, job_name))
 
     def action_start_job(self) -> None:
-        # If the user is focused on the tree and a leaf node is selected, start that job.
+        # If focused on the tree and a leaf node is selected, start that job.
         if (
             self.focused == self.projects_tree
             and self.projects_tree.cursor_node

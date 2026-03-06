@@ -1,3 +1,5 @@
+"""Database configuration and initialization routines."""
+
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,6 +9,7 @@ DB_PATH = DB_DIR / "db.sqlite3"
 
 
 def init_db():
+    """Initialize the SQLite database and create necessary tables."""
     if not DB_DIR.exists():
         DB_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -52,6 +55,7 @@ def init_db():
 
 @contextmanager
 def get_connection():
+    """Get a connection to the SQLite database."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
