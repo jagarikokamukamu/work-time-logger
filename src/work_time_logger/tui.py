@@ -1,5 +1,6 @@
 """Textual user interface for Work Time Logger."""
 
+import traceback
 from functools import partial
 
 from textual.app import App, ComposeResult
@@ -329,7 +330,10 @@ class WtlApp(App):
             self.refresh_data()
             self.notify("Log updated successfully!", variant="success")
         except Exception as e:
-            self.notify(f"Error: {e}", severity="error")
+            with open("wtl_error.log", "a") as f:
+                f.write("Error in _commit_log_update:\n")
+                traceback.print_exc(file=f)
+            self.notify(f"Update Error: {e} (See wtl_error.log)", severity="error")
 
     def _update_job_for_log(
         self, log_entry: dict, result: tuple[str, str] | None
