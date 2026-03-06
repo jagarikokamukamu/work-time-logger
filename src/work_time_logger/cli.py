@@ -1,3 +1,5 @@
+"""Command-line interface commands for Work Time Logger."""
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -19,6 +21,7 @@ app.add_typer(log_app, name="log")
 
 # --- Autocompletion Functions ---
 def complete_project_name(incomplete: str):
+    """Provide Typer autocompletion for project names."""
     projects = operations.list_projects()
     for p in projects:
         if p["name"].startswith(incomplete):
@@ -26,6 +29,7 @@ def complete_project_name(incomplete: str):
 
 
 def complete_job_name(ctx: typer.Context, incomplete: str):
+    """Provide Typer autocompletion for job names."""
     project_name = None
     # Typer Context hack: check if --to or -t or project name was passed before
     for k, v in ctx.params.items():
@@ -57,14 +61,15 @@ def start(
     """Start tracking a job."""
     if not unassigned and (not project_name or not job_name):
         console.print(
-            "[red]Error: You must provide a project and job name, or use the --unassigned flag.[/red]"
+            "[red]Error: You must provide a project and job name, "
+            "or use the --unassigned flag.[/red]"
         )
         raise typer.Exit(1)
 
     try:
         p_name = None if unassigned else project_name
         j_name = None if unassigned else job_name
-        log_id = operations.start_log(p_name, j_name)
+        operations.start_log(p_name, j_name)
 
         if unassigned:
             console.print(
@@ -82,7 +87,7 @@ def start(
 def stop():
     """Stop the current tracking job."""
     try:
-        log_id = operations.stop_log()
+        operations.stop_log()
         console.print("[green]Stopped current job tracking![/green]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -141,7 +146,8 @@ def add_job(
     try:
         jid = operations.add_job(name, project_name)
         console.print(
-            f"[green]Added job '{name}' to project '{project_name}' with ID {jid}[/green]"
+            f"[green]Added job '{name}' to project '{project_name}' "
+            f"with ID {jid}[/green]"
         )
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -201,7 +207,8 @@ def assign(
     try:
         operations.assign_log(log_id, project_name, job_name)
         console.print(
-            f"[green]Successfully assigned Log ID {log_id} to '{job_name}' in '{project_name}'.[/green]"
+            f"[green]Successfully assigned Log ID {log_id} to "
+            f"'{job_name}' in '{project_name}'.[/green]"
         )
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -212,16 +219,16 @@ def list_logs():
     """List logs."""
     logs = operations.list_logs()
     table = Table("ID", "Project", "Job", "Start Time", "End Time", "Memo")
-    for l in logs:
-        p_name = l["project_name"] if l["project_name"] else "[Unassigned]"
-        j_name = l["job_name"] if l["job_name"] else "[Unassigned]"
-        end_time = l["end_time"] if l["end_time"] else "Running..."
-        memo = l["memo"] if l["memo"] else ""
+    for log_entry in logs:
+        p_name = log_entry["project_name"] or "[Unassigned]"
+        j_name = log_entry["job_name"] or "[Unassigned]"
+        end_time = log_entry["end_time"] or "Running..."
+        memo = log_entry["memo"] if log_entry["memo"] else ""
         table.add_row(
-            str(l["id"]),
+            str(log_entry["id"]),
             p_name,
             j_name,
-            l["start_time"][:19],
+            log_entry["start_time"][:19],
             end_time[:19] if end_time != "Running..." else "Running...",
             memo,
         )

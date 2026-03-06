@@ -1,3 +1,5 @@
+"""Core business logic and database operations for Work Time Logger."""
+
 import csv
 from datetime import datetime
 
@@ -11,10 +13,12 @@ _jinja_env = Environment(undefined=Undefined, autoescape=True)
 
 
 def setup():
+    """Initialize the database configuration and tables."""
     init_db()
 
 
 def add_project(name: str):
+    """Add a new project to the database."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("INSERT INTO projects (name) VALUES (?)", (name,))
@@ -23,6 +27,7 @@ def add_project(name: str):
 
 
 def list_projects():
+    """List all projects in the database."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM projects")
@@ -30,6 +35,7 @@ def list_projects():
 
 
 def delete_project(project_id: int):
+    """Delete a project by its ID, cascading deletes to its jobs and logs."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
@@ -37,6 +43,7 @@ def delete_project(project_id: int):
 
 
 def add_job(name: str, project_name: str, description: str = ""):
+    """Add a new job under a specific project."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
@@ -53,28 +60,30 @@ def add_job(name: str, project_name: str, description: str = ""):
 
 
 def list_jobs(project_name: str = None):
+    """List all jobs, optionally filtering by project name."""
     with get_connection() as conn:
         cursor = conn.cursor()
         if project_name:
             cursor.execute(
                 """
-                SELECT jobs.*, projects.name as project_name 
-                FROM jobs 
-                JOIN projects ON jobs.project_id = projects.id 
+                SELECT jobs.*, projects.name as project_name
+                FROM jobs
+                JOIN projects ON jobs.project_id = projects.id
                 WHERE projects.name = ?
             """,
                 (project_name,),
             )
         else:
             cursor.execute("""
-                SELECT jobs.*, projects.name as project_name 
-                FROM jobs 
+                SELECT jobs.*, projects.name as project_name
+                FROM jobs
                 JOIN projects ON jobs.project_id = projects.id
             """)
         return cursor.fetchall()
 
 
 def import_jobs_from_csv(filepath: str, project_name: str):
+    """Import jobs from a CSV file into a given project."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
@@ -92,7 +101,8 @@ def import_jobs_from_csv(filepath: str, project_name: str):
                 if name:
                     try:
                         cursor.execute(
-                            "INSERT INTO jobs (project_id, name, description) VALUES (?, ?, ?)",
+                            "INSERT INTO jobs (project_id, name, description) "
+                            "VALUES (?, ?, ?)",
                             (project_id, name, description),
                         )
                         count += 1
@@ -103,6 +113,7 @@ def import_jobs_from_csv(filepath: str, project_name: str):
 
 
 def start_log(project_name: str = None, job_name: str = None):
+    """Start tracking a job, optionally leaving it unassigned."""
     with get_connection() as conn:
         cursor = conn.cursor()
 
@@ -143,10 +154,12 @@ def start_log(project_name: str = None, job_name: str = None):
 
 
 def stop_log():
+    """Stop tracking the currently running job."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id FROM logs WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1"
+            "SELECT id FROM logs WHERE end_time IS NULL "
+            "ORDER BY start_time DESC LIMIT 1"
         )
         row = cursor.fetchone()
         if not row:
@@ -159,6 +172,7 @@ def stop_log():
 
 
 def assign_log(log_id: int, project_name: str, job_name: str):
+    """Assign an existing log to a specific project and job."""
     with get_connection() as conn:
         cursor = conn.cursor()
 
@@ -191,12 +205,13 @@ def assign_log(log_id: int, project_name: str, job_name: str):
 
 
 def list_logs():
+    """List all tracked time logs."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT logs.id, projects.name as project_name, jobs.name as job_name, 
+            SELECT logs.id, projects.name as project_name, jobs.name as job_name,
                    logs.start_time, logs.end_time, logs.memo
-            FROM logs 
+            FROM logs
             LEFT JOIN projects ON logs.project_id = projects.id
             LEFT JOIN jobs ON logs.job_id = jobs.id
             ORDER BY logs.start_time DESC
