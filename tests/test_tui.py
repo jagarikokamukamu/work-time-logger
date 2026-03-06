@@ -95,7 +95,7 @@ async def test_tui_edit_log_cell():
         time_input = app.screen.query_one("#time_input")
         time_input.value = "12:00:00"
 
-        await pilot.click("#save")
+        await pilot.press("enter")
         await pilot.pause()
 
         # Modal should be closed
