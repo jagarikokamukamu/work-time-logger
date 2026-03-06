@@ -81,7 +81,7 @@ def import_jobs_from_csv(filepath: str, project_name: str):
         conn.commit()
         return count
 
-def start_log(project_name: str, job_name: str):
+def start_log(project_name: str = None, job_name: str = None):
     with get_connection() as conn:
         cursor = conn.cursor()
         
@@ -90,18 +90,24 @@ def start_log(project_name: str, job_name: str):
         if cursor.fetchone():
             raise ValueError("A job is already running! Please stop it first.")
 
-        # Find project and job IDs
-        cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
-        p_res = cursor.fetchone()
-        if not p_res: raise ValueError(f"Project '{project_name}' not found.")
-        
-        cursor.execute("SELECT id FROM jobs WHERE name = ? AND project_id = ?", (job_name, p_res['id']))
-        j_res = cursor.fetchone()
-        if not j_res: raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
+        p_id = None
+        j_id = None
+
+        if project_name and job_name:
+            # Find project and job IDs
+            cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+            p_res = cursor.fetchone()
+            if not p_res: raise ValueError(f"Project '{project_name}' not found.")
+            p_id = p_res['id']
+            
+            cursor.execute("SELECT id FROM jobs WHERE name = ? AND project_id = ?", (job_name, p_id))
+            j_res = cursor.fetchone()
+            if not j_res: raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
+            j_id = j_res['id']
 
         now = datetime.now().isoformat()
         cursor.execute("INSERT INTO logs (project_id, job_id, start_time) VALUES (?, ?, ?)", 
-                       (p_res['id'], j_res['id'], now))
+                       (p_id, j_id, now))
         conn.commit()
         return cursor.lastrowid
 
@@ -118,6 +124,30 @@ def stop_log():
         conn.commit()
         return row['id']
 
+def assign_log(log_id: int, project_name: str, job_name: str):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Check if log exists
+        cursor.execute("SELECT id FROM logs WHERE id = ?", (log_id,))
+        if not cursor.fetchone():
+            raise ValueError(f"Log ID {log_id} not found.")
+            
+        # Find project and job IDs
+        cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+        p_res = cursor.fetchone()
+        if not p_res: raise ValueError(f"Project '{project_name}' not found.")
+        p_id = p_res['id']
+        
+        cursor.execute("SELECT id FROM jobs WHERE name = ? AND project_id = ?", (job_name, p_id))
+        j_res = cursor.fetchone()
+        if not j_res: raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
+        j_id = j_res['id']
+        
+        cursor.execute("UPDATE logs SET project_id = ?, job_id = ? WHERE id = ?", (p_id, j_id, log_id))
+        conn.commit()
+        return log_id
+
 def list_logs():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -125,8 +155,8 @@ def list_logs():
             SELECT logs.id, projects.name as project_name, jobs.name as job_name, 
                    logs.start_time, logs.end_time, logs.memo
             FROM logs 
-            JOIN projects ON logs.project_id = projects.id
-            JOIN jobs ON logs.job_id = jobs.id
+            LEFT JOIN projects ON logs.project_id = projects.id
+            LEFT JOIN jobs ON logs.job_id = jobs.id
             ORDER BY logs.start_time DESC
         ''')
         return cursor.fetchall()
