@@ -107,7 +107,9 @@ class WtlApp(App):
                 yield self.projects_tree
             with Vertical(id="main-content"):
                 self.logs_table = DataTable()
-                self.logs_table.add_columns("ID", "Project", "Job", "Start Time", "End Time")
+                self.logs_table.add_columns(
+                    "ID", "Project", "Job", "Start Time", "End Time"
+                )
                 yield self.logs_table
         yield Footer()
 
