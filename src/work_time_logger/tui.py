@@ -1,5 +1,7 @@
 """Textual user interface for Work Time Logger."""
 
+from functools import partial
+
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -84,14 +86,89 @@ class JobSelectionModal(ModalScreen[tuple[str, str]]):
         self.dismiss(None)
 
 
-class LogEditModal(ModalScreen[dict]):
-    """Modal to edit a log entry."""
+class TimeEditModal(ModalScreen[str | None]):
+    """Modal to edit a time (YYYY-MM-DD and HH:MM:SS format)."""
 
     CSS = """
-    LogEditModal {
+    TimeEditModal {
         align: center middle;
     }
-    #edit-dialog {
+    #time-dialog {
+        width: 40;
+        height: auto;
+        border: thick $background 80%;
+        background: $surface;
+        padding: 1 2;
+    }
+    .input-container {
+        margin-bottom: 1;
+    }
+    #buttons {
+        height: auto;
+        align: right middle;
+    }
+    Button {
+        margin-left: 1;
+    }
+    """
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(self, title: str, initial_value: str | None):
+        super().__init__()
+        self.dialog_title = title
+        self.initial_date = ""
+        self.initial_time = ""
+        if initial_value and len(initial_value) >= 19:
+            self.initial_date = initial_value[:10]
+            self.initial_time = initial_value[11:19]
+        elif initial_value:
+            self.initial_date = initial_value
+
+    def compose(self) -> ComposeResult:
+        with Container(id="time-dialog"):
+            yield Label(self.dialog_title, classes="input-container")
+            yield Input(
+                value=self.initial_date,
+                placeholder="YYYY-MM-DD",
+                id="date_input",
+                classes="input-container",
+            )
+            yield Input(
+                value=self.initial_time,
+                placeholder="HH:MM:SS",
+                id="time_input",
+                classes="input-container",
+            )
+            with Horizontal(id="buttons"):
+                yield Button("Save", id="save", variant="success")
+                yield Button("Cancel", id="cancel", variant="error")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save":
+            date_val = self.query_one("#date_input", Input).value.strip()
+            time_val = self.query_one("#time_input", Input).value.strip()
+            if not date_val and not time_val:
+                self.dismiss(None)
+            else:
+                self.dismiss(f"{date_val}T{time_val}")
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class MemoEditModal(ModalScreen[str | None]):
+    """Modal to edit a memo."""
+
+    CSS = """
+    MemoEditModal {
+        align: center middle;
+    }
+    #memo-dialog {
         width: 60;
         height: auto;
         border: thick $background 80%;
@@ -114,43 +191,18 @@ class LogEditModal(ModalScreen[dict]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, log_data: dict):
+    def __init__(self, title: str, initial_value: str | None):
         super().__init__()
-        self.log_data = log_data
+        self.dialog_title = title
+        self.initial_value = initial_value or ""
 
     def compose(self) -> ComposeResult:
-        with Container(id="edit-dialog"):
-            yield Label(
-                f"Editing Log ID: {self.log_data['id']}", classes="input-container"
-            )
+        with Container(id="memo-dialog"):
+            yield Label(self.dialog_title, classes="input-container")
             yield Input(
-                value=self.log_data.get("project_name") or "",
-                placeholder="Project Name",
-                id="p_name",
-                classes="input-container",
-            )
-            yield Input(
-                value=self.log_data.get("job_name") or "",
-                placeholder="Job Name",
-                id="j_name",
-                classes="input-container",
-            )
-            yield Input(
-                value=self.log_data.get("start_time") or "",
-                placeholder="Start Time (ISO)",
-                id="start_time",
-                classes="input-container",
-            )
-            yield Input(
-                value=self.log_data.get("end_time") or "",
-                placeholder="End Time (ISO)",
-                id="end_time",
-                classes="input-container",
-            )
-            yield Input(
-                value=self.log_data.get("memo") or "",
-                placeholder="Memo",
-                id="memo",
+                value=self.initial_value,
+                placeholder="Memo contents...",
+                id="memo_input",
                 classes="input-container",
             )
             with Horizontal(id="buttons"):
@@ -159,21 +211,8 @@ class LogEditModal(ModalScreen[dict]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save":
-            p_name = self.query_one("#p_name", Input).value.strip()
-            j_name = self.query_one("#j_name", Input).value.strip()
-            start = self.query_one("#start_time", Input).value.strip()
-            end = self.query_one("#end_time", Input).value.strip()
-            memo = self.query_one("#memo", Input).value.strip()
-            self.dismiss(
-                {
-                    "id": self.log_data["id"],
-                    "project_name": p_name if p_name else None,
-                    "job_name": j_name if j_name else None,
-                    "start_time": start,
-                    "end_time": end if end else None,
-                    "memo": memo,
-                }
-            )
+            memo_val = self.query_one("#memo_input", Input).value.strip()
+            self.dismiss(memo_val)
         else:
             self.dismiss(None)
 
@@ -213,7 +252,7 @@ class WtlApp(App):
                 self.projects_tree.root.expand()
                 yield self.projects_tree
             with Vertical(id="main-content"):
-                self.logs_table = DataTable(cursor_type="row")
+                self.logs_table = DataTable(cursor_type="cell")
                 self.logs_table.add_columns(
                     "ID", "Project", "Job", "Start Time", "End Time", "Memo"
                 )
@@ -275,32 +314,74 @@ class WtlApp(App):
 
             self.start_timer_for_selection((project_name, job_name))
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle Enter key on the Logs Table to edit a log."""
-        if not event.row_key.value:
-            return
-        log_id = int(event.row_key.value)
-        log_entry = next((entry for entry in self.logs if entry["id"] == log_id), None)
-        if log_entry:
-            self.push_screen(LogEditModal(dict(log_entry)), self.update_log_from_modal)
-
-    def update_log_from_modal(self, result: dict | None) -> None:
-        """Callback to handle the result of the LogEditModal."""
-        if result is None:
-            return
+    def _commit_log_update(self, log_entry: dict, **kwargs) -> None:
+        data = {
+            "log_id": log_entry["id"],
+            "project_name": log_entry["project_name"],
+            "job_name": log_entry["job_name"],
+            "start_time": log_entry["start_time"],
+            "end_time": log_entry["end_time"],
+            "memo": log_entry["memo"],
+        }
+        data.update(kwargs)
         try:
-            operations.update_log(
-                log_id=result["id"],
-                project_name=result["project_name"],
-                job_name=result["job_name"],
-                start_time=result["start_time"],
-                end_time=result["end_time"],
-                memo=result["memo"],
-            )
+            operations.update_log(**data)
             self.refresh_data()
             self.notify("Log updated successfully!", variant="success")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
+
+    def _update_job_for_log(
+        self, log_entry: dict, result: tuple[str, str] | None
+    ) -> None:
+        if result is None:
+            return
+        p_name, j_name = result
+        self._commit_log_update(log_entry, project_name=p_name, job_name=j_name)
+
+    def _update_start_time(self, log_entry: dict, result: str | None) -> None:
+        if result is None:
+            return
+        self._commit_log_update(log_entry, start_time=result)
+
+    def _update_end_time(self, log_entry: dict, result: str | None) -> None:
+        if result is None:
+            return
+        self._commit_log_update(log_entry, end_time=result)
+
+    def _update_memo(self, log_entry: dict, result: str | None) -> None:
+        if result is None:
+            return
+        self._commit_log_update(log_entry, memo=result)
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
+        """Handle Enter key on a specific cell in the Logs Table."""
+        if not event.cell_key.row_key.value:
+            return
+        log_id = int(event.cell_key.row_key.value)
+        log_entry = next((entry for entry in self.logs if entry["id"] == log_id), None)
+        if not log_entry:
+            return
+
+        col_index = event.coordinate.column
+
+        # Columns mapping: 0:ID, 1:Proj, 2:Job, 3:Start, 4:End, 5:Memo
+        if col_index in (1, 2):
+            callback = partial(self._update_job_for_log, log_entry)
+            self.push_screen(JobSelectionModal(), callback)
+        elif col_index == 3:
+            callback = partial(self._update_start_time, log_entry)
+            self.push_screen(
+                TimeEditModal("Edit Start Time", log_entry["start_time"]), callback
+            )
+        elif col_index == 4:
+            callback = partial(self._update_end_time, log_entry)
+            self.push_screen(
+                TimeEditModal("Edit End Time", log_entry["end_time"]), callback
+            )
+        elif col_index == 5:
+            callback = partial(self._update_memo, log_entry)
+            self.push_screen(MemoEditModal("Edit Memo", log_entry["memo"]), callback)
 
     def action_start_job(self) -> None:
         # If focused on the tree and a leaf node is selected, start that job.

@@ -38,7 +38,7 @@ async def test_tui_startup_population():
     operations.stop_log()
 
     app = WtlApp()
-    async with app.run_test(size=(120, 60)) as pilot:
+    async with app.run_test(size=(120, 60)):
         tree = app.query_one(Tree)
         table = app.query_one(DataTable)
 
@@ -70,9 +70,8 @@ async def test_tui_add_empty_log():
 
 
 @pytest.mark.asyncio
-async def test_tui_edit_log_modal():
-    """Test editing an existing log via LogEditModal."""
-    # Add prerequisites to avoid ValueError on missing project/job
+async def test_tui_edit_log_cell():
+    """Test editing an existing log's time via TimeEditModal by selecting a cell."""
     operations.add_project("NewProj")
     operations.add_job("NewJob", "NewProj")
     operations.create_empty_log()
@@ -82,26 +81,19 @@ async def test_tui_edit_log_modal():
         table = app.query_one(DataTable)
         app.set_focus(table)
 
-        # Assuming the newly created empty log is at the top/first selection
+        # Move to Start Time column (index 3)
+        table.move_cursor(row=0, column=3)
         await pilot.press("enter")
         await pilot.pause()
 
-        # Modal should be open
+        # Modal should be open (TimeEditModal)
         assert len(app.screen_stack) > 1
 
-        await pilot.click("#p_name")
-        await pilot.press("backspace", "backspace", "backspace", "backspace")
-        for char in "NewProj":
-            await pilot.press(char)
+        date_input = app.screen.query_one("#date_input")
+        date_input.value = "2026-12-31"
 
-        await pilot.click("#j_name")
-        await pilot.press("backspace", "backspace", "backspace", "backspace")
-        for char in "NewJob":
-            await pilot.press(char)
-
-        await pilot.click("#memo")
-        for char in "TestMemo":
-            await pilot.press(char)
+        time_input = app.screen.query_one("#time_input")
+        time_input.value = "12:00:00"
 
         await pilot.click("#save")
         await pilot.pause()
@@ -110,6 +102,4 @@ async def test_tui_edit_log_modal():
         assert len(app.screen_stack) == 1
 
         logs = operations.list_logs()
-        assert logs[0]["project_name"] == "NewProj"
-        assert logs[0]["job_name"] == "NewJob"
-        assert logs[0]["memo"] == "TestMemo"
+        assert logs[0]["start_time"] == "2026-12-31T12:00:00"
