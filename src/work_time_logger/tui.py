@@ -328,7 +328,7 @@ class WtlApp(App):
         try:
             operations.update_log(**data)
             self.refresh_data()
-            self.notify("Log updated successfully!", variant="success")
+            self.notify("Log updated successfully!", severity="information")
         except Exception as e:
             with open("wtl_error.log", "a") as f:
                 f.write("Error in _commit_log_update:\n")
