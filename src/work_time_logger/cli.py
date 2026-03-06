@@ -171,6 +171,29 @@ def list_jobs(
     console.print(table)
 
 
+@job_app.command("delete")
+def delete_job(
+    name: str = typer.Argument(..., help="Name of the job"),
+    project_name: str = typer.Argument(
+        ...,
+        help="Project the job belongs to",
+        autocompletion=complete_project_name,
+    ),
+):
+    """Delete a job from a project."""
+    try:
+        jobs = operations.list_jobs(project_name)
+        job_to_delete = next((j for j in jobs if j["name"] == name), None)
+        if not job_to_delete:
+            console.print(f"[red]Error: Job '{name}' not found in '{project_name}'.[/red]")
+            return
+        
+        operations.delete_job(job_to_delete["id"])
+        console.print(f"[green]Deleted job '{name}' from '{project_name}'[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 @job_app.command("import")
 def import_jobs(
     filepath: str = typer.Argument(..., help="Path to the CSV file"),
@@ -186,6 +209,16 @@ def import_jobs(
     try:
         count = operations.import_jobs_from_csv(filepath, project_name)
         console.print(f"[green]Imported {count} jobs into '{project_name}'.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@log_app.command("delete")
+def delete_log(log_id: int = typer.Argument(..., help="ID of the log to delete")):
+    """Delete a log entry."""
+    try:
+        operations.delete_log(log_id)
+        console.print(f"[green]Deleted log {log_id}[/green]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 
