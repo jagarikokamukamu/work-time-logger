@@ -206,6 +206,14 @@ class WtlApp(App):
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
+    def action_start_unassigned(self) -> None:
+        try:
+            operations.start_log(None, None)
+            self.refresh_data()
+            self.notify("Started tracking an unassigned job!")
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
+
 if __name__ == "__main__":
     app = WtlApp()
     app.run()
