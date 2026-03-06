@@ -204,6 +204,65 @@ def assign_log(log_id: int, project_name: str, job_name: str):
         return log_id
 
 
+def create_empty_log() -> int:
+    """Create a new unassigned log entry with current time for both start and end."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute(
+            "INSERT INTO logs (start_time, end_time) VALUES (?, ?)",
+            (now, now),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def update_log(
+    log_id: int,
+    project_name: str | None,
+    job_name: str | None,
+    start_time: str,
+    end_time: str | None,
+    memo: str,
+) -> None:
+    """Update an existing log entry's details."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        p_id = None
+        j_id = None
+
+        if project_name and job_name:
+            cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+            p_res = cursor.fetchone()
+            if not p_res:
+                raise ValueError(f"Project '{project_name}' not found.")
+            p_id = p_res["id"]
+
+            cursor.execute(
+                "SELECT id FROM jobs WHERE name = ? AND project_id = ?",
+                (job_name, p_id),
+            )
+            j_res = cursor.fetchone()
+            if not j_res:
+                raise ValueError(
+                    f"Job '{job_name}' not found in project '{project_name}'."
+                )
+            j_id = j_res["id"]
+
+        cursor.execute(
+            """
+            UPDATE logs
+            SET project_id = ?, job_id = ?, start_time = ?, end_time = ?, memo = ?
+            WHERE id = ?
+            """,
+            (p_id, j_id, start_time, end_time, memo, log_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError(f"Log ID {log_id} not found.")
+        conn.commit()
+
+
 def list_logs():
     """List all tracked time logs."""
     with get_connection() as conn:
