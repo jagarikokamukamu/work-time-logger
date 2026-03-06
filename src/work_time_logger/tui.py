@@ -1,13 +1,14 @@
 """Textual user interface for Work Time Logger."""
 
 import traceback
+from datetime import datetime, timedelta
 from functools import partial
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button,
     DataTable,
     Footer,
     Header,
@@ -143,20 +144,79 @@ class TimeEditModal(ModalScreen[str | None]):
                 id="time_input",
                 classes="input-container",
             )
-            with Horizontal(id="buttons"):
-                yield Button("Save", id="save", variant="success")
-                yield Button("Cancel", id="cancel", variant="error")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save":
-            date_val = self.query_one("#date_input", Input).value.strip()
-            time_val = self.query_one("#time_input", Input).value.strip()
-            if not date_val and not time_val:
-                self.dismiss(None)
-            else:
-                self.dismiss(f"{date_val}T{time_val}")
-        else:
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self._submit_time()
+
+    def _submit_time(self) -> None:
+        date_val = self.query_one("#date_input", Input).value.strip()
+        time_val = self.query_one("#time_input", Input).value.strip()
+        if not date_val and not time_val:
             self.dismiss(None)
+        else:
+            self.dismiss(f"{date_val}T{time_val}")
+
+    def on_key(self, event: Key) -> None:
+        if event.key not in ("up", "down"):
+            return
+
+        if self.focused not in (
+            self.query_one("#date_input"),
+            self.query_one("#time_input"),
+        ):
+            return
+
+        focused_input = self.focused
+        assert isinstance(focused_input, Input)
+        cursor_pos = focused_input.cursor_position
+        val = focused_input.value
+
+        delta = 1 if event.key == "up" else -1
+
+        try:
+            if focused_input.id == "date_input":
+                # date format: YYYY-MM-DD
+                dt = datetime.strptime(val, "%Y-%m-%d")
+                if cursor_pos <= 4:
+                    dt = dt.replace(year=dt.year + delta)
+                elif cursor_pos <= 7:
+                    # handle month correctly across boundaries
+                    month = dt.month + delta
+                    year = dt.year
+                    if month > 12:
+                        month -= 12
+                        year += 1
+                    elif month < 1:
+                        month += 12
+                        year -= 1
+                    # cap day if necessary (e.g. Feb 30 -> Feb 28)
+                    if month < 12:
+                        next_month = datetime(year, month % 12 + 1, 1)
+                        last_day_of_month = (next_month - timedelta(days=1)).day
+                    else:
+                        last_day_of_month = 31
+                    day = min(dt.day, last_day_of_month)
+                    dt = dt.replace(year=year, month=month, day=day)
+                else:
+                    dt += timedelta(days=delta)
+                focused_input.value = dt.strftime("%Y-%m-%d")
+
+            elif focused_input.id == "time_input":
+                # time format: HH:MM:SS
+                placeholder_date = "2000-01-01 "
+                dt = datetime.strptime(placeholder_date + val, "%Y-%m-%d %H:%M:%S")
+                if cursor_pos <= 2:
+                    dt += timedelta(hours=delta)
+                elif cursor_pos <= 5:
+                    dt += timedelta(minutes=delta)
+                else:
+                    dt += timedelta(seconds=delta)
+                focused_input.value = dt.strftime("%H:%M:%S")
+
+            focused_input.cursor_position = cursor_pos
+            event.stop()
+        except Exception:
+            pass  # ignore parse errors on manual up/down
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -179,13 +239,6 @@ class MemoEditModal(ModalScreen[str | None]):
     .input-container {
         margin-bottom: 1;
     }
-    #buttons {
-        height: auto;
-        align: right middle;
-    }
-    Button {
-        margin-left: 1;
-    }
     """
 
     BINDINGS = [
@@ -206,16 +259,10 @@ class MemoEditModal(ModalScreen[str | None]):
                 id="memo_input",
                 classes="input-container",
             )
-            with Horizontal(id="buttons"):
-                yield Button("Save", id="save", variant="success")
-                yield Button("Cancel", id="cancel", variant="error")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save":
-            memo_val = self.query_one("#memo_input", Input).value.strip()
-            self.dismiss(memo_val)
-        else:
-            self.dismiss(None)
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "memo_input":
+            self.dismiss(event.value.strip())
 
     def action_cancel(self) -> None:
         self.dismiss(None)
