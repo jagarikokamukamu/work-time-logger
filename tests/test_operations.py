@@ -97,3 +97,41 @@ def test_delete_project_cascades():
     assert len(operations.list_projects()) == 0
     assert len(operations.list_jobs("Del Project")) == 0
     assert len(operations.list_logs()) == 0
+
+
+def test_delete_log():
+    operations.create_empty_log()
+    logs = operations.list_logs()
+    assert len(logs) == 1
+    log_id = logs[0]["id"]
+
+    operations.delete_log(log_id)
+    assert len(operations.list_logs()) == 0
+
+    with pytest.raises(ValueError, match="Log ID 999 not found"):
+        operations.delete_log(999)
+
+
+def test_update_log():
+    operations.create_empty_log()
+    logs = operations.list_logs()
+    log_id = logs[0]["id"]
+
+    operations.add_project("UpdateProj")
+    operations.add_job("UpdateJob", "UpdateProj")
+
+    operations.update_log(
+        log_id,
+        project_name="UpdateProj",
+        job_name="UpdateJob",
+        start_time="2024-01-01T10:00:00",
+        end_time=None,
+        memo="updated memo",
+    )
+
+    updated_log = operations.list_logs()[0]
+    assert updated_log["project_name"] == "UpdateProj"
+    assert updated_log["job_name"] == "UpdateJob"
+    assert updated_log["start_time"] == "2024-01-01T10:00:00"
+    assert updated_log["end_time"] is None
+    assert updated_log["memo"] == "updated memo"

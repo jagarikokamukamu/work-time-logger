@@ -76,6 +76,16 @@ def list_jobs(project_name: str = None):
         return cursor.fetchall()
 
 
+def delete_job(job_id: int):
+    """Delete a job by its ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        if cursor.rowcount == 0:
+            raise ValueError(f"Job ID {job_id} not found.")
+        conn.commit()
+
+
 def import_jobs_from_csv(filepath: str, project_name: str):
     """Import jobs from a CSV file into a given project."""
     with get_connection() as conn:
@@ -138,7 +148,7 @@ def start_log(project_name: str = None, job_name: str = None):
                 )
             j_id = j_res["id"]
 
-        now = datetime.now().isoformat()
+        now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute(
             "INSERT INTO logs (project_id, job_id, start_time) VALUES (?, ?, ?)",
             (p_id, j_id, now),
@@ -159,7 +169,7 @@ def stop_log():
         if not row:
             raise ValueError("No running jobs found.")
 
-        now = datetime.now().isoformat()
+        now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute("UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"]))
         conn.commit()
         return row["id"]
@@ -202,7 +212,7 @@ def create_empty_log() -> int:
     """Create a new unassigned log entry with current time for both start and end."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        now = datetime.now().isoformat()
+        now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute(
             "INSERT INTO logs (start_time, end_time) VALUES (?, ?)",
             (now, now),
@@ -252,6 +262,16 @@ def update_log(
             """,
             (p_id, j_id, start_time, end_time, memo, log_id),
         )
+        if cursor.rowcount == 0:
+            raise ValueError(f"Log ID {log_id} not found.")
+        conn.commit()
+
+
+def delete_log(log_id: int) -> None:
+    """Delete a specific log entry by its ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM logs WHERE id = ?", (log_id,))
         if cursor.rowcount == 0:
             raise ValueError(f"Log ID {log_id} not found.")
         conn.commit()
