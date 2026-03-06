@@ -40,13 +40,24 @@ def complete_job_name(ctx: typer.Context, incomplete: str):
 
 @app.command("start")
 def start(
-    project_name: str = typer.Argument(..., help="Name of the project", autocompletion=complete_project_name),
-    job_name: str = typer.Argument(..., help="Name of the job", autocompletion=complete_job_name)
+    project_name: str = typer.Argument(None, help="Name of the project", autocompletion=complete_project_name),
+    job_name: str = typer.Argument(None, help="Name of the job", autocompletion=complete_job_name),
+    unassigned: bool = typer.Option(False, "--unassigned", "-u", help="Start an unassigned timer")
 ):
     """Start tracking a job."""
+    if not unassigned and (not project_name or not job_name):
+        console.print("[red]Error: You must provide a project and job name, or use the --unassigned flag.[/red]")
+        raise typer.Exit(1)
+        
     try:
-        log_id = operations.start_log(project_name, job_name)
-        console.print(f"[green]Started tracking '{job_name}' in '{project_name}'.[/green]")
+        p_name = None if unassigned else project_name
+        j_name = None if unassigned else job_name
+        log_id = operations.start_log(p_name, j_name)
+        
+        if unassigned:
+            console.print("[green]Started tracking an [bold]unassigned[/bold] job.[/green]")
+        else:
+            console.print(f"[green]Started tracking '{job_name}' in '{project_name}'.[/green]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 
@@ -128,14 +139,29 @@ def import_jobs(
 
 # --- Log Commands ---
 
+@log_app.command("assign")
+def assign(
+    log_id: int = typer.Argument(..., help="ID of the log to edit"),
+    project_name: str = typer.Argument(..., help="Name of the project", autocompletion=complete_project_name),
+    job_name: str = typer.Argument(..., help="Name of the job", autocompletion=complete_job_name)
+):
+    """Assign a project and job to an existing log."""
+    try:
+        operations.assign_log(log_id, project_name, job_name)
+        console.print(f"[green]Successfully assigned Log ID {log_id} to '{job_name}' in '{project_name}'.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
 @log_app.command("list")
 def list_logs():
     """List logs."""
     logs = operations.list_logs()
     table = Table("ID", "Project", "Job", "Start Time", "End Time", "Memo")
     for l in logs:
+        p_name = l['project_name'] if l['project_name'] else "[Unassigned]"
+        j_name = l['job_name'] if l['job_name'] else "[Unassigned]"
         end_time = l['end_time'] if l['end_time'] else "Running..."
         memo = l['memo'] if l['memo'] else ""
-        table.add_row(str(l['id']), l['project_name'], l['job_name'], l['start_time'][:19], end_time[:19] if end_time != "Running..." else "Running...", memo)
+        table.add_row(str(l['id']), p_name, j_name, l['start_time'][:19], end_time[:19] if end_time != "Running..." else "Running...", memo)
     console.print(table)
 

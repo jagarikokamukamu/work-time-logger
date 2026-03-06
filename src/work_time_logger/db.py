@@ -37,8 +37,8 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                job_id INTEGER NOT NULL,
+                project_id INTEGER,
+                job_id INTEGER,
                 start_time DATETIME NOT NULL,
                 end_time DATETIME,
                 memo TEXT,
