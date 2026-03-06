@@ -89,7 +89,7 @@ class WtlApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("s", "start_job", "Start/Search Job"),
-        ("u", "start_unassigned", "Start Unassigned Timer"),
+        ("S", "start_unassigned", "Start Unassigned Timer"),
         ("x", "stop_job", "Stop tracking current Job")
     ]
 
