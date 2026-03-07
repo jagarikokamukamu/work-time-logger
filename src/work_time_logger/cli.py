@@ -141,10 +141,13 @@ def add_job(
         help="Project to add the job to",
         autocompletion=complete_project_name,
     ),
+    code: str = typer.Option(
+        None, "--code", "-c", help="Optional external code for export features (e.g. JTC format code)"
+    ),
 ):
     """Add a new job to a project."""
     try:
-        jid = operations.add_job(name, project_name)
+        jid = operations.add_job(name, project_name, code=code)
         console.print(
             f"[green]Added job '{name}' to project '{project_name}' "
             f"with ID {jid}[/green]"
@@ -251,18 +254,37 @@ def assign(
 def list_logs():
     """List logs."""
     logs = operations.list_logs()
-    table = Table("ID", "Project", "Job", "Start Time", "End Time", "Memo")
+    table = Table("ID", "Project", "Job", "Job Code", "Start Time", "End Time", "Memo")
     for log_entry in logs:
         p_name = log_entry["project_name"] or "[Unassigned]"
         j_name = log_entry["job_name"] or "[Unassigned]"
+        j_code = log_entry["job_code"] or ""
         end_time = log_entry["end_time"] or "Running..."
         memo = log_entry["memo"] if log_entry["memo"] else ""
         table.add_row(
             str(log_entry["id"]),
             p_name,
             j_name,
+            j_code,
             log_entry["start_time"][:19],
             end_time[:19] if end_time != "Running..." else "Running...",
             memo,
         )
     console.print(table)
+
+
+@log_app.command("export")
+def export_logs(
+    profile: str = typer.Option(..., "--profile", "-p", help="Path to the TOML export profile"),
+    out: str = typer.Option("report.csv", "--out", "-o", help="Output CSV file path"),
+):
+    """Export logs to a formatted CSV file based on a TOML profile."""
+    from . import exporter
+    try:
+        count = exporter.export_logs(profile, out)
+        if count > 0:
+            console.print(f"[green]Successfully exported {count} grouped rows to {out}[/green]")
+        else:
+            console.print("[yellow]No logs matched or exported.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error exporting logs: {e}[/red]")

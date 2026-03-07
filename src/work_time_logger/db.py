@@ -31,10 +31,17 @@ def init_db():
                 project_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 description TEXT,
+                code TEXT,
                 UNIQUE(project_id, name),
                 FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
             )
         """)
+
+        # Migration: Add code column if it doesn't exist
+        try:
+            cursor.execute("SELECT code FROM jobs LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN code TEXT")
 
         # Logs Table
         cursor.execute("""

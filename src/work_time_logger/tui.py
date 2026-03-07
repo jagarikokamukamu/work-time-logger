@@ -61,6 +61,7 @@ class WtlApp(App):
         Binding("s", "start_job", "Search Job", show=False),
         Binding("S", "start_unassigned", "Start Unassigned Timer", show=False),
         Binding("A", "add_empty_log", "Add Empty Log", show=False),
+        Binding("e", "export_logs", "Export Logs", show=True),
     ]
 
     def __init__(self, **kwargs):
@@ -77,7 +78,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Start Time", "End Time", "Memo"
+                    "ID", "Project", "Job", "Job Code", "Start Time", "End Time", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -120,6 +121,7 @@ class WtlApp(App):
                 str(log_entry["id"]),
                 p_name,
                 j_name,
+                log_entry["job_code"] or "",
                 log_entry["start_time"][:19],
                 end_time,
                 memo,
@@ -212,19 +214,19 @@ class WtlApp(App):
 
         col_index = event.coordinate.column
 
-        # Columns mapping: 0:ID, 1:Proj, 2:Job, 3:Start, 4:End, 5:Memo
+        # Columns mapping: 0:ID, 1:Proj, 2:Job, 3:JobCode (readonly), 4:Start, 5:End, 6:Memo
         if col_index in (1, 2):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
-        elif col_index == 3:
-            value = log_entry["start_time"] or ""
-            self.show_edit_overlay(log_entry, 3, value, "date", event.coordinate)
         elif col_index == 4:
-            value = log_entry["end_time"] or ""
+            value = log_entry["start_time"] or ""
             self.show_edit_overlay(log_entry, 4, value, "date", event.coordinate)
         elif col_index == 5:
+            value = log_entry["end_time"] or ""
+            self.show_edit_overlay(log_entry, 5, value, "date", event.coordinate)
+        elif col_index == 6:
             value = log_entry["memo"] or ""
-            self.show_edit_overlay(log_entry, 5, value, "memo", event.coordinate)
+            self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
 
     def show_edit_overlay(
         self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
@@ -278,11 +280,11 @@ class WtlApp(App):
                 self.notify("Format must be YYYY-MM-DD HH:MM:SS", severity="error")
                 return
 
-        if self._editing_col_index == 3:
+        if self._editing_col_index == 4:
             self._update_start_time(self._editing_log_entry, val)
-        elif self._editing_col_index == 4:
-            self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 5:
+            self._update_end_time(self._editing_log_entry, val)
+        elif self._editing_col_index == 6:
             self._update_memo(self._editing_log_entry, val)
 
         inp.can_focus = False
@@ -399,9 +401,28 @@ class WtlApp(App):
 
         self.push_screen(ConfirmDeleteModal(), check_delete)
 
+    def action_export_logs(self) -> None:
+        """Action handler to export logs using a user-specified TOML profile."""
+        from .widgets import ExportLogsModal
+        from . import exporter
+        
+        def handle_export(data: tuple[str, str] | None) -> None:
+            if not data:
+                return
+            profile_path, output_path = data
+            try:
+                count = exporter.export_logs(profile_path, output_path)
+                if count > 0:
+                    self.notify(f"Successfully exported {count} grouped rows to {output_path}")
+                else:
+                    self.notify("No logs matched or exported.", severity="warning")
+            except Exception as e:
+                with open("wtl_error.log", "a") as f:
+                    f.write(f"Export Error: {e}\n")
+                    traceback.print_exc(file=f)
+                self.notify(f"Export Error: {e} (See wtl_error.log)", severity="error")
 
-
-
+        self.push_screen(ExportLogsModal(), handle_export)
 if __name__ == "__main__":
     app = WtlApp()
     app.run()

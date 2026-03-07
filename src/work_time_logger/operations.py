@@ -36,7 +36,7 @@ def delete_project(project_id: int):
         conn.commit()
 
 
-def add_job(name: str, project_name: str, description: str = ""):
+def add_job(name: str, project_name: str, description: str = "", code: str = None):
     """Add a new job under a specific project."""
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -46,8 +46,8 @@ def add_job(name: str, project_name: str, description: str = ""):
             raise ValueError(f"Project '{project_name}' not found.")
         project_id = result["id"]
         cursor.execute(
-            "INSERT INTO jobs (project_id, name, description) VALUES (?, ?, ?)",
-            (project_id, name, description),
+            "INSERT INTO jobs (project_id, name, description, code) VALUES (?, ?, ?, ?)",
+            (project_id, name, description, code),
         )
         conn.commit()
         return cursor.lastrowid
@@ -102,12 +102,13 @@ def import_jobs_from_csv(filepath: str, project_name: str):
             for row in reader:
                 name = row.get("name")
                 description = row.get("description", "")
+                code = row.get("code")
                 if name:
                     try:
                         cursor.execute(
-                            "INSERT INTO jobs (project_id, name, description) "
-                            "VALUES (?, ?, ?)",
-                            (project_id, name, description),
+                            "INSERT INTO jobs (project_id, name, description, code) "
+                            "VALUES (?, ?, ?, ?)",
+                            (project_id, name, description, code),
                         )
                         count += 1
                     except Exception:
@@ -283,6 +284,7 @@ def list_logs():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT logs.id, projects.name as project_name, jobs.name as job_name,
+                   jobs.code as job_code,
                    logs.start_time, logs.end_time, logs.memo
             FROM logs
             LEFT JOIN projects ON logs.project_id = projects.id

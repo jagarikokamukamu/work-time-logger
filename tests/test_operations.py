@@ -40,13 +40,14 @@ def test_add_project_and_job():
     assert projects[0]["name"] == "Test Project"
 
     # Test Adding a Job
-    job_id = operations.add_job("Test Job", "Test Project", "A description")
+    job_id = operations.add_job("Test Job", "Test Project", "A description", "JOB_CODE_01")
     assert job_id == 1
 
     jobs = operations.list_jobs("Test Project")
     assert len(jobs) == 1
     assert jobs[0]["name"] == "Test Job"
     assert jobs[0]["description"] == "A description"
+    assert jobs[0]["code"] == "JOB_CODE_01"
 
 
 def test_start_unassigned_job():
