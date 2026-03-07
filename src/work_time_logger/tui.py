@@ -1,271 +1,34 @@
 """Textual user interface for Work Time Logger."""
 
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import partial
 
+from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.events import Key
-from textual.screen import ModalScreen
+from textual.containers import Horizontal, Vertical
 from textual.widgets import (
     DataTable,
     Footer,
     Header,
     Input,
-    Label,
-    OptionList,
     Tree,
 )
-from textual.widgets.option_list import Option
+from textual.binding import Binding
 
 from . import operations
+from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayInput
 
-
-class JobSelectionModal(ModalScreen[tuple[str, str]]):
-    """Modal to fuzzy search and select a job to start."""
-
-    CSS = """
-    JobSelectionModal {
-        align: center middle;
-    }
-    #dialog {
-        grid-size: 1 2;
-        grid-rows: 3 1fr;
-        width: 60;
-        height: 20;
-        border: thick $background 80%;
-        background: $surface;
-    }
-    #search {
-        margin: 1 2;
-    }
-    #job-list {
-        margin: 0 2 1 2;
-    }
-    """
-
+class ProjectsTree(Tree):
     BINDINGS = [
-        ("escape", "cancel", "Cancel Job Selection"),
+        Binding("enter", "select_cursor", "Start Job", show=True),
     ]
 
-    def __init__(self):
-        super().__init__()
-        self.jobs = []
-        for p in operations.list_projects():
-            for j in operations.list_jobs(p["name"]):
-                self.jobs.append((p["name"], j["name"]))
-
-    def compose(self) -> ComposeResult:
-        yield Container(
-            Input(placeholder="Type to search for a job...", id="search"),
-            OptionList(id="job-list"),
-            id="dialog",
-        )
-
-    def on_mount(self) -> None:
-        self.update_options("")
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        self.update_options(event.value)
-
-    def update_options(self, search_term: str) -> None:
-        option_list = self.query_one(OptionList)
-        option_list.clear_options()
-        term = search_term.lower()
-        for i, (p_name, j_name) in enumerate(self.jobs):
-            label = f"{j_name} ({p_name})"
-            if term in label.lower():
-                option_list.add_option(Option(prompt=label, id=str(i)))
-
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        if event.option_id is not None:
-            idx = int(event.option_id)
-            selected_project, selected_job = self.jobs[idx]
-            self.dismiss((selected_project, selected_job))
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class TimeEditModal(ModalScreen[str | None]):
-    """Modal to edit a time (YYYY-MM-DD and HH:MM:SS format)."""
-
-    CSS = """
-    TimeEditModal {
-        align: center middle;
-    }
-    #time-dialog {
-        width: 40;
-        height: auto;
-        border: thick $background 80%;
-        background: $surface;
-        padding: 1 2;
-    }
-    .input-container {
-        margin-bottom: 1;
-    }
-    #buttons {
-        height: auto;
-        align: right middle;
-    }
-    Button {
-        margin-left: 1;
-    }
-    """
-
+class LogsTable(DataTable):
     BINDINGS = [
-        ("escape", "cancel", "Cancel"),
+        Binding("enter", "select_cursor", "Edit", show=True),
+        Binding("D", "app.delete_log", "Delete", show=True),
     ]
-
-    def __init__(self, title: str, initial_value: str | None):
-        super().__init__()
-        self.dialog_title = title
-        self.initial_date = ""
-        self.initial_time = ""
-        if initial_value and len(initial_value) >= 19:
-            self.initial_date = initial_value[:10]
-            self.initial_time = initial_value[11:19]
-        elif initial_value:
-            self.initial_date = initial_value
-
-    def compose(self) -> ComposeResult:
-        with Container(id="time-dialog"):
-            yield Label(self.dialog_title, classes="input-container")
-            yield Input(
-                value=self.initial_date,
-                placeholder="YYYY-MM-DD",
-                id="date_input",
-                classes="input-container",
-            )
-            yield Input(
-                value=self.initial_time,
-                placeholder="HH:MM:SS",
-                id="time_input",
-                classes="input-container",
-            )
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        self._submit_time()
-
-    def _submit_time(self) -> None:
-        date_val = self.query_one("#date_input", Input).value.strip()
-        time_val = self.query_one("#time_input", Input).value.strip()
-        if not date_val and not time_val:
-            self.dismiss(None)
-        else:
-            self.dismiss(f"{date_val}T{time_val}")
-
-    def on_key(self, event: Key) -> None:
-        if event.key not in ("up", "down"):
-            return
-
-        if self.focused not in (
-            self.query_one("#date_input"),
-            self.query_one("#time_input"),
-        ):
-            return
-
-        focused_input = self.focused
-        assert isinstance(focused_input, Input)
-        cursor_pos = focused_input.cursor_position
-        val = focused_input.value
-
-        delta = 1 if event.key == "up" else -1
-
-        try:
-            if focused_input.id == "date_input":
-                # date format: YYYY-MM-DD
-                dt = datetime.strptime(val, "%Y-%m-%d")
-                if cursor_pos <= 4:
-                    dt = dt.replace(year=dt.year + delta)
-                elif cursor_pos <= 7:
-                    # handle month correctly across boundaries
-                    month = dt.month + delta
-                    year = dt.year
-                    if month > 12:
-                        month -= 12
-                        year += 1
-                    elif month < 1:
-                        month += 12
-                        year -= 1
-                    # cap day if necessary (e.g. Feb 30 -> Feb 28)
-                    if month < 12:
-                        next_month = datetime(year, month % 12 + 1, 1)
-                        last_day_of_month = (next_month - timedelta(days=1)).day
-                    else:
-                        last_day_of_month = 31
-                    day = min(dt.day, last_day_of_month)
-                    dt = dt.replace(year=year, month=month, day=day)
-                else:
-                    dt += timedelta(days=delta)
-                focused_input.value = dt.strftime("%Y-%m-%d")
-
-            elif focused_input.id == "time_input":
-                # time format: HH:MM:SS
-                placeholder_date = "2000-01-01 "
-                dt = datetime.strptime(placeholder_date + val, "%Y-%m-%d %H:%M:%S")
-                if cursor_pos <= 2:
-                    dt += timedelta(hours=delta)
-                elif cursor_pos <= 5:
-                    dt += timedelta(minutes=delta)
-                else:
-                    dt += timedelta(seconds=delta)
-                focused_input.value = dt.strftime("%H:%M:%S")
-
-            focused_input.cursor_position = cursor_pos
-            event.stop()
-        except Exception:
-            pass  # ignore parse errors on manual up/down
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class MemoEditModal(ModalScreen[str | None]):
-    """Modal to edit a memo."""
-
-    CSS = """
-    MemoEditModal {
-        align: center middle;
-    }
-    #memo-dialog {
-        width: 60;
-        height: auto;
-        border: thick $background 80%;
-        background: $surface;
-        padding: 1 2;
-    }
-    .input-container {
-        margin-bottom: 1;
-    }
-    """
-
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-    ]
-
-    def __init__(self, title: str, initial_value: str | None):
-        super().__init__()
-        self.dialog_title = title
-        self.initial_value = initial_value or ""
-
-    def compose(self) -> ComposeResult:
-        with Container(id="memo-dialog"):
-            yield Label(self.dialog_title, classes="input-container")
-            yield Input(
-                value=self.initial_value,
-                placeholder="Memo contents...",
-                id="memo_input",
-                classes="input-container",
-            )
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "memo_input":
-            self.dismiss(event.value.strip())
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
 
 class WtlApp(App):
@@ -281,37 +44,59 @@ class WtlApp(App):
         width: 70%;
         height: 100%;
     }
+    #edit-overlay {
+        display: none;
+        layer: overlay;
+        padding: 0 1;
+        border: none;
+    }
     """
 
     BINDINGS = [
-        ("q", "quit", "Quit"),
-        ("s", "start_job", "Start/Search Job"),
-        ("S", "start_unassigned", "Start Unassigned Timer"),
-        ("A", "add_empty_log", "Add Empty Log"),
-        ("x", "stop_job", "Stop tracking current Job"),
+        Binding("h", "show_help", "Help", show=True),
+        Binding("f1", "show_help", "Help", show=False),
+        Binding("tab", "switch_focus", "Focus", show=True),
+        Binding("x", "stop_job", "Stop", show=True),
+        Binding("q", "quit", "Quit", show=False),
+        Binding("s", "start_job", "Search Job", show=False),
+        Binding("S", "start_unassigned", "Start Unassigned Timer", show=False),
+        Binding("A", "add_empty_log", "Add Empty Log", show=False),
     ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Header()
         with Horizontal():
             with Vertical(id="sidebar"):
-                self.projects_tree = Tree("Projects & Jobs")
+                self.projects_tree = ProjectsTree("Projects & Jobs")
                 self.projects_tree.root.expand()
                 yield self.projects_tree
             with Vertical(id="main-content"):
-                self.logs_table = DataTable(cursor_type="cell")
+                self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
                     "ID", "Project", "Job", "Start Time", "End Time", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
+        yield OverlayInput(id="edit-overlay")
 
     def on_mount(self) -> None:
         """Called when app starts."""
         self.refresh_data()
+        self.query_one("#edit-overlay").can_focus = False
+        self.logs_table.focus()
 
     def refresh_data(self) -> None:
+        try:
+            cursor_coord = self.logs_table.cursor_coordinate
+            scroll_x, scroll_y = self.logs_table.scroll_offset
+        except Exception:
+            cursor_coord = None
+            scroll_x, scroll_y = 0, 0
+
         # Populate Projects and Jobs tree
         self.projects_tree.clear()
         projects = operations.list_projects()
@@ -340,6 +125,18 @@ class WtlApp(App):
                 memo,
                 key=str(log_entry["id"]),
             )
+
+        if cursor_coord:
+            try:
+                self.logs_table.move_cursor(
+                    row=cursor_coord.row, column=cursor_coord.column, animate=False
+                )
+            except Exception:
+                pass
+        try:
+            self.logs_table.scroll_to(x=scroll_x, y=scroll_y, animate=False)
+        except Exception:
+            pass
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle Enter key on the Tree."""
@@ -375,7 +172,6 @@ class WtlApp(App):
         try:
             operations.update_log(**data)
             self.refresh_data()
-            self.notify("Log updated successfully!", severity="information")
         except Exception as e:
             with open("wtl_error.log", "a") as f:
                 f.write("Error in _commit_log_update:\n")
@@ -421,18 +217,86 @@ class WtlApp(App):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
         elif col_index == 3:
-            callback = partial(self._update_start_time, log_entry)
-            self.push_screen(
-                TimeEditModal("Edit Start Time", log_entry["start_time"]), callback
-            )
+            value = log_entry["start_time"] or ""
+            self.show_edit_overlay(log_entry, 3, value, "date", event.coordinate)
         elif col_index == 4:
-            callback = partial(self._update_end_time, log_entry)
-            self.push_screen(
-                TimeEditModal("Edit End Time", log_entry["end_time"]), callback
-            )
+            value = log_entry["end_time"] or ""
+            self.show_edit_overlay(log_entry, 4, value, "date", event.coordinate)
         elif col_index == 5:
-            callback = partial(self._update_memo, log_entry)
-            self.push_screen(MemoEditModal("Edit Memo", log_entry["memo"]), callback)
+            value = log_entry["memo"] or ""
+            self.show_edit_overlay(log_entry, 5, value, "memo", event.coordinate)
+
+    def show_edit_overlay(
+        self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
+    ) -> None:
+        self._editing_log_entry = log_entry
+        self._editing_col_index = col_index
+
+        inp = self.query_one("#edit-overlay", OverlayInput)
+        inp.edit_mode = edit_mode
+        if edit_mode == "date" and len(value) >= 19:
+            inp.edit_mode = (
+                "date"  # Maybe it should be datetime? Oh, TimeEditModal extracted it.
+            )
+            # wait, timeEdit modal was used for BOTH. I will just render full datetime
+            pass
+
+        # Format the value for editing
+        if edit_mode == "date" and "T" in value:
+            inp.value = value.replace("T", " ")
+        else:
+            inp.value = value
+
+        region = self.logs_table._get_cell_region(coordinate)
+        table_x, table_y = self.logs_table.region.x, self.logs_table.region.y
+        scroll_x, scroll_y = self.logs_table.scroll_offset
+
+        abs_x = table_x + region.x - scroll_x
+        abs_y = table_y + region.y - scroll_y
+
+        inp.styles.offset = (abs_x, abs_y)
+        inp.styles.width = region.width
+        inp.styles.height = region.height
+        inp.styles.display = "block"
+        inp.can_focus = True
+        self.set_timer(0.01, inp.focus)
+
+    @on(Input.Submitted, "#edit-overlay")
+    def on_edit_overlay_submitted(self, event: Input.Submitted) -> None:
+        val = event.value.strip()
+        inp = event.control
+        if inp.edit_mode == "date":
+            val = val.replace("/", "-")
+            try:
+                if len(val) > 10:
+                    dt = datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+                    val = dt.strftime("%Y-%m-%dT%H:%M:%S")
+                else:
+                    dt = datetime.strptime(val, "%Y-%m-%d")
+                    val = dt.strftime("%Y-%m-%dT00:00:00")
+            except ValueError:
+                self.notify("Format must be YYYY-MM-DD HH:MM:SS", severity="error")
+                return
+
+        if self._editing_col_index == 3:
+            self._update_start_time(self._editing_log_entry, val)
+        elif self._editing_col_index == 4:
+            self._update_end_time(self._editing_log_entry, val)
+        elif self._editing_col_index == 5:
+            self._update_memo(self._editing_log_entry, val)
+
+        inp.can_focus = False
+        inp.styles.display = "none"
+        self.logs_table.focus()
+
+    def action_show_help(self) -> None:
+        self.push_screen(HelpModal())
+
+    def action_switch_focus(self) -> None:
+        if self.focused == self.projects_tree:
+            self.logs_table.focus()
+        else:
+            self.projects_tree.focus()
 
     def action_start_job(self) -> None:
         # If focused on the tree and a leaf node is selected, start that job.
@@ -485,7 +349,6 @@ class WtlApp(App):
         try:
             operations.start_log(project_name, job_name)
             self.refresh_data()
-            self.notify(f"Started tracking: {job_name} ({project_name})")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
@@ -493,7 +356,6 @@ class WtlApp(App):
         try:
             operations.stop_log()
             self.refresh_data()
-            self.notify("Job stopped tracking!")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
@@ -501,7 +363,6 @@ class WtlApp(App):
         try:
             operations.start_log(None, None)
             self.refresh_data()
-            self.notify("Started tracking an unassigned job!")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
@@ -510,9 +371,35 @@ class WtlApp(App):
         try:
             operations.create_empty_log()
             self.refresh_data()
-            self.notify("Added an empty log!")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
+
+    def action_delete_log(self) -> None:
+        """Action handler to delete the currently selected log."""
+        if self.focused != self.logs_table:
+            return
+        coord = self.logs_table.cursor_coordinate
+        if not coord:
+            return
+        try:
+            cell_key = self.logs_table.coordinate_to_cell_key(coord)
+        except Exception:
+            return
+        if not cell_key or not cell_key.row_key or not cell_key.row_key.value:
+            return
+
+        def check_delete(confirm: bool) -> None:
+            if confirm:
+                try:
+                    log_id = int(cell_key.row_key.value)
+                    operations.delete_log(log_id)
+                    self.refresh_data()
+                except Exception as e:
+                    self.notify(f"Error: {e}", severity="error")
+
+        self.push_screen(ConfirmDeleteModal(), check_delete)
+
+
 
 
 if __name__ == "__main__":
