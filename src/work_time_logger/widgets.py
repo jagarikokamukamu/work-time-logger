@@ -268,3 +268,62 @@ class HelpModal(ModalScreen):
     def on_key(self, event) -> None:
         """Dismiss the modal on any key press."""
         self.dismiss()
+
+
+class ExportLogsModal(ModalScreen[tuple[str, str]]):
+    """Modal to enter file paths for exporting logs."""
+
+    CSS = """
+    ExportLogsModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    #export-dialog {
+        grid-size: 2;
+        grid-gutter: 1 2;
+        grid-rows: 1fr 1fr 1fr;
+        padding: 1 2;
+        width: 60;
+        height: 18;
+        border: thick $background 80%;
+        background: $surface;
+    }
+    .export-label {
+        column-span: 2;
+        height: 1fr;
+        content-align: left bottom;
+    }
+    #export-profile, #export-output {
+        column-span: 2;
+    }
+    .dialog-buttons {
+        width: 100%;
+    }
+    """
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Label("Profile TOML Path:", classes="export-label"),
+            Input(value="export_profile.toml", id="export-profile"),
+            Label("Output CSV Path:", classes="export-label"),
+            Input(value="report.csv", id="export-output"),
+            Button("Export", variant="success", id="btn-export", classes="dialog-buttons"),
+            Button("Cancel", variant="error", id="btn-cancel", classes="dialog-buttons"),
+            id="export-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-export":
+            profile = self.query_one("#export-profile", Input).value.strip()
+            output = self.query_one("#export-output", Input).value.strip()
+            if profile and output:
+                self.dismiss((profile, output))
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

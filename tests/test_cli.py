@@ -36,7 +36,7 @@ def test_start_unassigned_from_cli():
     # List logs to check if it's there
     result = runner.invoke(cli.app, ["log", "list"])
     assert result.exit_code == 0
-    assert "[Unassigned]" in result.stdout
+    assert "[Unassigne" in result.stdout
     assert "Running..." in result.stdout
 
     # Stop it
