@@ -78,7 +78,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Job Code", "Start Time", "End Time", "Memo"
+                    "ID", "Project", "Job", "Start Time", "End Time", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -123,7 +123,6 @@ class WtlApp(App):
                 str(log_entry["id"]),
                 p_name,
                 j_name,
-                log_entry["job_code"] or "",
                 log_entry["start_time"][:19],
                 end_time,
                 memo,
@@ -221,19 +220,19 @@ class WtlApp(App):
 
         col_index = event.coordinate.column
 
-        # Columns mapping: 0:ID, 1:Proj, 2:Job, 3:JobCode (readonly), 4:Start, 5:End, 6:Memo
+        # Columns mapping: 0:ID, 1:Proj, 2:Job, 3:Start, 4:End, 5:Memo
         if col_index in (1, 2):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
-        elif col_index == 4:
+        elif col_index == 3:
             value = log_entry["start_time"] or ""
+            self.show_edit_overlay(log_entry, 3, value, "date", event.coordinate)
+        elif col_index == 4:
+            value = log_entry["end_time"] or ""
             self.show_edit_overlay(log_entry, 4, value, "date", event.coordinate)
         elif col_index == 5:
-            value = log_entry["end_time"] or ""
-            self.show_edit_overlay(log_entry, 5, value, "date", event.coordinate)
-        elif col_index == 6:
             value = log_entry["memo"] or ""
-            self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
+            self.show_edit_overlay(log_entry, 5, value, "memo", event.coordinate)
 
     def show_edit_overlay(
         self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
@@ -287,11 +286,11 @@ class WtlApp(App):
                 self.notify("Format must be YYYY-MM-DD HH:MM:SS", severity="error")
                 return
 
-        if self._editing_col_index == 4:
+        if self._editing_col_index == 3:
             self._update_start_time(self._editing_log_entry, val)
-        elif self._editing_col_index == 5:
+        elif self._editing_col_index == 4:
             self._update_end_time(self._editing_log_entry, val)
-        elif self._editing_col_index == 6:
+        elif self._editing_col_index == 5:
             self._update_memo(self._editing_log_entry, val)
 
         inp.can_focus = False
