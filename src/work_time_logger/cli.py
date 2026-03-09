@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import operations
+from . import db, operations
 
 app = typer.Typer(help="Work Time Logger (wtl)", no_args_is_help=True)
 console = Console()
@@ -275,7 +275,12 @@ def list_logs():
 
 @log_app.command("export")
 def export_logs(
-    profile: str = typer.Option(..., "--profile", "-p", help="Path to the TOML export profile"),
+    profile: str = typer.Option(
+        str(db.DB_DIR / "export-profile.toml"),
+        "--profile",
+        "-p",
+        help="Path to the TOML export profile",
+    ),
     out: str = typer.Option("report.csv", "--out", "-o", help="Output CSV file path"),
 ):
     """Export logs to a formatted CSV file based on a TOML profile."""
