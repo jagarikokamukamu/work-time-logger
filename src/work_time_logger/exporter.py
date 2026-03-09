@@ -1,5 +1,6 @@
 """Export module for Work Time Logger."""
 
+import os
 import csv
 import re
 import tomllib
@@ -8,10 +9,39 @@ from operator import itemgetter
 
 from . import operations
 
+DEFAULT_PROFILE_TEMPLATE = """[extract]
+# Extract attributes from job_code using regex named groups
+job_code = "^(?P<type>[A-Za-z]+)-(?P<ticket>\\\\d+)$"
+
+[defaults]
+# Default values for attributes not found in job_code
+type = "General"
+ticket = "None"
+
+[export]
+# Which keys from the extracted attributes to use to group notes and time together
+group_by = ["type", "ticket"]
+
+[export.format]
+# How to format notes for a single item and how to separate multiple items
+note_item = "[{project_name}/{job_name}] {memo}"
+note_separator = " / "
+
+[export.columns]
+# Mapping of final CSV column headers to the string template
+"Type" = "{type}"
+"Ticket" = "{ticket}"
+"Duration (Hours)" = "{aggregated_time}"
+"Details" = "{aggregated_notes}"
+"""
 
 def export_logs(profile_path: str, output_path: str):
-    """Export logs based on the provided TOML profile."""
+    """Export logs based on the provided TOML profile. Generates a default profile if missing."""
     
+    if not os.path.exists(profile_path):
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_PROFILE_TEMPLATE)
+            
     with open(profile_path, "rb") as f:
         profile = tomllib.load(f)
 
