@@ -33,6 +33,12 @@ note_separator = " / "
 "Ticket" = "{ticket}"
 "Duration (Hours)" = "{aggregated_time}"
 "Details" = "{aggregated_notes}"
+
+[import.mapping]
+# Mapping of how to construct job attributes from CSV columns during import
+name = "{name}"
+description = "{description}"
+job_code = "{type}-{ticket}"
 """
 
 def export_logs(profile_path: str, output_path: str):
