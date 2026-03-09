@@ -24,7 +24,7 @@ group_by = ["type", "ticket"]
 
 [export.format]
 # How to format notes for a single item and how to separate multiple items
-note_item = "[{project_name}/{job_name}] {memo}"
+note_item = "[{project_name}/{job_name}] {time_hours}h: {memo}"
 note_separator = " / "
 
 [export.columns]
