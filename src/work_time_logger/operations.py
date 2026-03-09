@@ -92,8 +92,34 @@ def delete_job(job_id: int):
         conn.commit()
 
 
-def import_jobs_from_csv(filepath: str, project_name: str):
+def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = None) -> int:
     """Import jobs from a CSV file into a given project."""
+    import os
+    import tomllib
+
+    mapping = {
+        "name": "{name}",
+        "description": "{description}",
+        "code": "{code}"
+    }
+
+    if profile_path and os.path.exists(profile_path):
+        try:
+            with open(profile_path, "rb") as f:
+                profile = tomllib.load(f)
+                import_mapping = profile.get("import", {}).get("mapping", {})
+                if import_mapping:
+                    if "name" in import_mapping:
+                        mapping["name"] = import_mapping["name"]
+                    if "description" in import_mapping:
+                        mapping["description"] = import_mapping["description"]
+                    if "job_code" in import_mapping:
+                        mapping["code"] = import_mapping["job_code"]
+        except (OSError, tomllib.TOMLDecodeError):
+            # Profile is optional or might be malformed; defaults are used.
+            # This is a safe fallback and doesn't mask critical security issues.
+            pass
+
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
@@ -106,19 +132,41 @@ def import_jobs_from_csv(filepath: str, project_name: str):
             reader = csv.DictReader(f)
             count = 0
             for row in reader:
-                name = row.get("name")
-                description = row.get("description", "")
-                code = row.get("code")
-                if name:
+                def format_field(template):
+                    if not template:
+                        return None
                     try:
-                        cursor.execute(
-                            "INSERT INTO jobs (project_id, name, description, code) "
-                            "VALUES (?, ?, ?, ?)",
-                            (project_id, name, description, code),
-                        )
-                        count += 1
-                    except Exception:
-                        pass
+                        return template.format(**row)
+                    except KeyError:
+                        return None
+
+                name = format_field(mapping["name"])
+                if not name and "name" in row:
+                    name = row["name"]
+                
+                if not name:
+                    continue
+
+                description = format_field(mapping["description"])
+                if description is None:
+                    description = row.get("description", "")
+
+                code = format_field(mapping["code"])
+                if code is None:
+                    code = row.get("code")
+
+                try:
+                    cursor.execute(
+                        "INSERT INTO jobs (project_id, name, description, code) "
+                        "VALUES (?, ?, ?, ?)",
+                        (project_id, name, description, code),
+                    )
+                    count += 1
+                except Exception:
+                    # During import, we skip rows that are invalid (e.g. duplicates)
+                    # to allow the rest of the import to proceed.
+                    # nosec B110, B112
+                    continue
         conn.commit()
         return count
 

@@ -207,10 +207,16 @@ def import_jobs(
         help="Project to add these jobs to",
         autocompletion=complete_project_name,
     ),
+    profile: str = typer.Option(
+        str(db.DB_DIR / "export-profile.toml"),
+        "--profile",
+        "-r",
+        help="Path to the TOML profile for import mapping",
+    ),
 ):
     """Import jobs from a CSV file."""
     try:
-        count = operations.import_jobs_from_csv(filepath, project_name)
+        count = operations.import_jobs_from_csv(filepath, project_name, profile_path=profile)
         console.print(f"[green]Imported {count} jobs into '{project_name}'.[/green]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
