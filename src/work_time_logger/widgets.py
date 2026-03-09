@@ -15,7 +15,7 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option
 
-from . import operations
+from . import db, operations
 
 
 class JobSelectionModal(ModalScreen[tuple[str, str]]):
@@ -307,7 +307,7 @@ class ExportLogsModal(ModalScreen[tuple[str, str]]):
     def compose(self) -> ComposeResult:
         yield Container(
             Label("Profile TOML Path:", classes="export-label"),
-            Input(value="export_profile.toml", id="export-profile"),
+            Input(value=str(db.DB_DIR / "export-profile.toml"), id="export-profile"),
             Label("Output CSV Path:", classes="export-label"),
             Input(value="report.csv", id="export-output"),
             Button("Export", variant="success", id="btn-export", classes="dialog-buttons"),
