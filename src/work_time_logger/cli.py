@@ -282,19 +282,36 @@ def list_logs():
 @log_app.command("export")
 def export_logs(
     profile: str = typer.Option(
-        str(db.DB_DIR / "export-profile.toml"),
+        str(db.DB_DIR / "profile.toml"),
         "--profile",
         "-p",
         help="Path to the TOML export profile",
     ),
     out: str = typer.Option("report.csv", "--out", "-o", help="Output CSV file path"),
+    date: str = typer.Option(
+        None,
+        "--date",
+        "-d",
+        help="Filter logs by date (YYYY-MM-DD). Defaults to today. Pass 'all' to export all logs.",
+    ),
 ):
     """Export logs to a formatted CSV file based on a TOML profile."""
+    import datetime as dt
     from . import exporter
+
+    # Resolve date filter
+    if date is None:
+        target_date = dt.date.today().isoformat()
+    elif date.lower() == "all":
+        target_date = None
+    else:
+        target_date = date
+
     try:
-        count = exporter.export_logs(profile, out)
+        count = exporter.export_logs(profile, out, target_date=target_date)
         if count > 0:
-            console.print(f"[green]Successfully exported {count} grouped rows to {out}[/green]")
+            label = target_date if target_date else "all dates"
+            console.print(f"[green]Successfully exported {count} grouped rows to {out} ({label})[/green]")
         else:
             console.print("[yellow]No logs matched or exported.[/yellow]")
     except Exception as e:
