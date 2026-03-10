@@ -208,7 +208,7 @@ def import_jobs(
         autocompletion=complete_project_name,
     ),
     profile: str = typer.Option(
-        str(db.DB_DIR / "export-profile.toml"),
+        str(db.DB_DIR / "profile.toml"),
         "--profile",
         "-r",
         help="Path to the TOML profile for import mapping",
