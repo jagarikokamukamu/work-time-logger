@@ -307,8 +307,8 @@ class ExportLogsModal(ModalScreen[tuple[str, str]]):
 
     def compose(self) -> ComposeResult:
         yield Container(
-            Label("Profile TOML Path:", classes="export-label"),
-            Input(value=str(db.DB_DIR / "export-profile.toml"), id="export-profile"),
+            Label("Profile (.toml):", classes="export-label"),
+            Input(value=str(db.DB_DIR / "profile.toml"), id="export-profile"),
             Label("Output CSV Path:", classes="export-label"),
             Input(value="report.csv", id="export-output"),
             Button("Export", variant="success", id="btn-export", classes="dialog-buttons"),

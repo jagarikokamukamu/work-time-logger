@@ -1,12 +1,14 @@
 # Work Time Logger (wtl) クイックスタートガイド
 
-このガイドでは、設定プロファイル (`export-profile.toml`) を活用してカスタマイズしたジョブのインポートから、TUIを使った実際の記録開始までの流れを説明します。
+このガイドでは、設定プロファイル (`profile.toml`) を活用してカスタマイズしたジョブのインポートから、TUIを使った実際の記録開始までの流れを説明します。
 
 ## 1. 設定プロファイルの確認・編集
 
-`wtl` では、`~/.wtl/export-profile.toml` の設定を編集することで、インポートするCSVのカラム名と内部データの紐づけ(`import.mapping`)を自由に設定できます。
+`wtl` では、`~/.wtl/profile.toml` の設定を編集することで、インポートするCSVのカラム名と内部データの紐づけ(`import.mapping`)を自由に設定できます。
 （※ファイルがない場合は、一度ダミーで `uv run wtl log export` を実行すると雛形が生成されます）
 
+> [!TIP]
+> プレースホルダ (`{time_hours}`, `{project_name}` 等) で使える変数の完全な仕様やリストは [docs/profile.md](profile.md) を参照してください。
 以下のように `[import.mapping]` セクションを追記・編集します。
 この設定により、「CSVの `type` 列」と「`ticket` 列」をハイフンで繋げて、自動的に `job_code` としてデータベースに登録することができます。
 
@@ -21,7 +23,8 @@ job_code = "{type}-{ticket}"
 
 次に、インポートする対象のプロジェクトと、上記のフォーマットに合わせたCSVファイル (`docs/sample_jobs.csv`) を準備します。
 
-**docs/sample_jobs.csv** の例:
+**docs/sample-jobs.csv** の例:
+
 ```csv
 name,description,type,ticket
 Fix Database,Fixing the database bug,DEV,001
