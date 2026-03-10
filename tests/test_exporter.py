@@ -56,10 +56,10 @@ def test_export_logic(tmp_path: Path):
     profile_path = tmp_path / "profile.toml"
     with open(profile_path, "w", encoding="utf-8") as f:
         f.write('''
-[extract]
+[export.extract]
 job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_(?P<prefix>[a-zA-Z]+)_(?P<desc>.*)"
 
-[defaults]
+[export.defaults]
 "load" = "1"
 "loss" = ""
 "item" = ""

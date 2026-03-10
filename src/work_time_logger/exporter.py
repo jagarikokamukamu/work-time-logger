@@ -51,12 +51,10 @@ def export_logs(profile_path: str, output_path: str):
     with open(profile_path, "rb") as f:
         profile = tomllib.load(f)
 
-    # We now look for extract and defaults underneath the 'export' section if available.
-    # For backwards compatibility with older files involving [extract] / [defaults]:
     export_config = profile.get("export", {})
     
-    extract_rules = export_config.get("extract", profile.get("extract", {}))
-    defaults_config = export_config.get("defaults", profile.get("defaults", {}))
+    extract_rules = export_config.get("extract", {})
+    defaults_config = export_config.get("defaults", {})
 
     # Compile regexes safely
     compiled_regexes = {}
