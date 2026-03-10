@@ -128,7 +128,7 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
             raise ValueError(f"Project '{project_name}' not found.")
         project_id = result["id"]
 
-        with open(filepath, encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             count = 0
             for row in reader:
