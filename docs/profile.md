@@ -2,33 +2,7 @@
 
 `~/.wtl/profile.toml` は、インポート時と、エクスポート時のデータ構造を定義するファイルです。
 
-## 🔄 データの流れとプロファイルの役割
-
-### 📥 1. インポート時: CSV から `job_code` を作り出す
-
-`wtl job import` でジョブを一括登録する際、CSVのカラム名を組み合わせて、システム内で識別・集計に使うための `job_code` を生成できます。
-
-```mermaid
-graph LR
-    A[サンプルCSVの中身\ntype=DEV, ticket=001] --> B([import.mapping])
-    B -->|"{type}-{ticket}"| C[(データベース\njob_code=DEV-001)]
-```
-
-### 📤 2. エクスポート時: `job_code` を分解して集計する
-
-`wtl log export` で作業履歴を出力する際、データベース内の `job_code` を再び分解し、同じチケット番号などの条件で作業時間を**自動で足し合わせて**CSVに出力します。
-
-```mermaid
-graph LR
-    A[(データベース\njob_code=DEV-001)] --> B([extract])
-    B -->|正規表現で分解| C[type=DEV\nticket=001]
-    C --> D([export / groupby])
-    D -->|同じ ticket を合算| E[エクスポート結果のCSV\nDEV-001の総計時間]
-```
-
----
-
-## 🛠 プロファイル設定のステップ・バイ・ステップ
+## セクション構造
 
 デフォルトで生成される `profile.toml` は、以下のセクションに分かれています。
 
@@ -38,9 +12,7 @@ graph LR
 - `[export]`: 変数をもとに作業記録をどうグループ化・合算し、どうフォーマットするかを設定します。
 - `[export.columns]`: 最終的に出力するCSVのカラム（ヘッダーと中身）を設定します。
 
-各セクションを次のように設定します。
-
-### Step 1: インポートの設定
+### import.mapping
 
 `[import.mapping]` セクションでは、CSVをインポートする際に読み込む列を指定します。
 
@@ -58,11 +30,19 @@ description = "{詳細}"
 job_code = "{type}-{ticket}"
 ```
 
-### Step 2: 出力時の変数抽出方法の設定
+### export
 
-`[export.extract]`セクションでは、export時に `job_code` をどう解釈し、分解するかを指定します。
+- `group_by`: どの変数を基準にして作業データを**グループ合算**するかを指定します。
 
-- `job_code`: `job_code` の解釈方法を指定します。Pythonの正規表現の名前付きグループ `(?P<変数名>パターン)` で記述します。
+```toml
+[export]
+# type と ticket が同じログは、1行にまとめて作業時間を合算する！
+group_by = ["type", "ticket"]
+```
+
+### export.extract
+
+- `job_code`: エクスポート時に `job_code` をどう解釈し、分解するかを指定します。正規表現の名前付きグループ `(?P<変数名>パターン)` で記述します。
 
 `[export.defaults]` セクションでは、`[export.extract]` > `job_code`で指定した正規表現にマッチしなかった場合（または空の場合）の初期値を指定します。
 
@@ -80,27 +60,22 @@ type = "General"
 ticket = "None"
 ```
 
-### Step 3: グループ化と集計の設定
+### export.format
 
-`[export]`セクションで、システムがあらかじめ解釈する**固定のキーパラメータ**に対して値を設定します。
+`[export.format]` セクションでは、`{aggregated_notes}` の書式を設定します。
 
-- `group_by`: どの変数を基準にして作業データを**グループ合算**するかを指定します。
-- `note_item`: 1行にまとめる際、各ログの備考 (`memo`) 等をどのようなフォーマットで表記するかを指定します。
-- `note_separator`: 複数の備考をつなぎ合わせる際の区切り文字を指定します。
+- `note_item`: 各ログの備考 (`memo`) 等をどのようなフォーマットで表記するかを指定します。
+- `note_separator`: 各ログの`note_item`を結合する際の区切り文字を指定します。
 
 ```toml
-[export]
-# type と ticket が同じログは、1行にまとめて作業時間を合算する！
-group_by = ["type", "ticket"]
-
 [export.format]
-# 1行にまとめる際、各ログの備考(memo)をどういうフォーマットで表記するか
+# 1行にまとめる際、各ログのnoteをどういうフォーマットで表記するか
 note_item = "[{project_name}/{job_name}] {time_hours}h: {memo}"
 # 複数の備考を何で区切って繋げるか
 note_separator = " / "
 ```
 
-### Step 4: 最終出力CSVのカラム定義
+### export.columns
 
 `[export.columns]`セクションで、出力するCSVの実際の「ヘッダー名」と「中身」を対応づけます。
 
@@ -117,18 +92,18 @@ note_separator = " / "
 
 ---
 
-## 📖 チートシート: 利用可能な変数一覧
+## 利用可能な変数一覧
 
 プロファイル（`{}` の中）で使える事前定義済みの変数です。
 
 ### ログ1件が持つ基本データ（`export.format.note_item` 等で使用）
 
-| 変数名         | 説明                                        | 例                  |
-| :------------- | :------------------------------------------ | :------------------ |
-| `project_name` | プロジェクト名                              | `"Example Project"` |
-| `job_name`     | ジョブ名                                    | `"Fix Database"`    |
-| `memo`         | その作業の備考欄                            | `"バグ修正対応"`    |
-| `time_hours`   | その作業にかかった時間（時間単位、小数2桁） | `1.25`              |
+| 変数名         | 説明                                        |
+| :------------- | :------------------------------------------ |
+| `project_name` | プロジェクト名                              |
+| `job_name`     | ジョブ名                                    |
+| `memo`         | その作業の備考欄                            |
+| `time_hours`   | その作業にかかった時間（時間単位、小数2桁） |
 
 *(※上記に加え、`[export.extract]`で分解した独自変数(例:`type`, `ticket`)も使えます)*
 
@@ -138,38 +113,3 @@ note_separator = " / "
 | :----------------- | :---------------------------------------------------------- |
 | `aggregated_time`  | グループ内の全作業時間の合計 (`time_hours` の合計)          |
 | `aggregated_notes` | グループ内の `note_item` を `note_separator` で連結した結果 |
-
----
-
-## 🍳 そのまま使える！設定レシピ集
-
-やりたいことに合わせて、`profile.toml` の中身を丸ごと置き換えてください。
-
-### レシピA: フラット出力（グループ化せず、全記録をそのまま出す）
-
-「合算なんていらない！1回スタート/ストップした記録をそのまま1行のCSVで出したい」という場合の設定です。
-
-```toml
-[export.extract]
-job_code = ""
-
-[export.defaults]
-
-[export]
-# グループ化の基準をなくすか、絶対に被らないものを指定する
-# (※未指定/空リストにすると全体が1つに合算されてしまうため、一意な要素を入れるなどシステム仕様に応じた調整が必要です。単純にすべて出す場合はログ自体に固有のIDがないため、時間単位での出力となります)
-# 簡単なハックとして memo などを入れます
-group_by = ["project_name", "job_name", "memo"]
-
-[export.format]
-note_item = "{memo}"
-note_separator = " / "
-
-[export.columns]
-"Project" = "{project_name}"
-"Task" = "{job_name}"
-"Time (Hours)" = "{aggregated_time}"
-"Memo" = "{aggregated_notes}"
-```
-
-*(※フラット出力専用のフラグはないため、事実上は `groupby=["start_time"]` などを内部でサポートする拡張が必要になる場合があります)*
