@@ -94,7 +94,7 @@ note_separator = "/"
         
     output_path = tmp_path / "output.csv"
     
-    count = exporter.export_logs(str(profile_path), str(output_path))
+    count = exporter.export_logs(str(profile_path), str(output_path), target_date=None)
     assert count == 3
     
     with open(output_path, "r", encoding="utf-8") as f:

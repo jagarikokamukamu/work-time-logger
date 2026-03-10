@@ -4,8 +4,8 @@ import os
 import csv
 import re
 import tomllib
+from datetime import date as date_type
 from itertools import groupby
-from operator import itemgetter
 
 from . import operations
 
@@ -41,8 +41,14 @@ description = "{description}"
 job_code = "{type}-{ticket}"
 """
 
-def export_logs(profile_path: str, output_path: str):
-    """Export logs based on the provided TOML profile. Generates a default profile if missing."""
+def export_logs(profile_path: str, output_path: str, target_date: str | None = None):
+    """Export logs based on the provided TOML profile. Generates a default profile if missing.
+    
+    Args:
+        profile_path: Path to the TOML profile file.
+        output_path: Path for the output CSV file.
+        target_date: Date string in YYYY-MM-DD format to filter logs by. If None, all logs are exported.
+    """
     
     if not os.path.exists(profile_path):
         with open(profile_path, "w", encoding="utf-8") as f:
@@ -70,8 +76,16 @@ def export_logs(profile_path: str, output_path: str):
     note_separator = export_config.get("format", {}).get("note_separator", "/")
     columns_config = export_config.get("columns", {})
 
+    from datetime import datetime
     logs = operations.list_logs()
-    
+
+    # Filter by date if provided
+    if target_date:
+        logs = [
+            log for log in logs
+            if log["start_time"] and log["start_time"][:10] == target_date
+        ]
+
     # First extract all variables into a flat list of dictionaries
     extracted_data = []
 
@@ -100,7 +114,6 @@ def export_logs(profile_path: str, output_path: str):
         
         time_hours = 0.0
         if start_time and end_time:
-            from datetime import datetime
             start_dt = datetime.fromisoformat(start_time)
             end_dt = datetime.fromisoformat(end_time)
             duration = end_dt - start_dt

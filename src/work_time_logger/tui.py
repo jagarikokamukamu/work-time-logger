@@ -413,14 +413,16 @@ class WtlApp(App):
         from .widgets import ExportLogsModal
         from . import exporter
         
-        def handle_export(data: tuple[str, str] | None) -> None:
+        def handle_export(data: tuple[str, str, str] | None) -> None:
             if not data:
                 return
-            profile_path, output_path = data
+            profile_path, output_path, date_val = data
+            target_date = None if date_val.lower() == "all" else date_val
             try:
-                count = exporter.export_logs(profile_path, output_path)
+                count = exporter.export_logs(profile_path, output_path, target_date=target_date)
                 if count > 0:
-                    self.notify(f"Successfully exported {count} grouped rows to {output_path}")
+                    label = target_date if target_date else "all dates"
+                    self.notify(f"Successfully exported {count} grouped rows to {output_path} ({label})")
                 else:
                     self.notify("No logs matched or exported.", severity="warning")
             except Exception as e:
