@@ -21,7 +21,7 @@ job_code = "{type}-{ticket}"
 
 ## 2. ジョブの準備とインポート
 
-次に、インポートする対象のプロジェクトと、上記のフォーマットに合わせたCSVファイル (`docs/sample_jobs.csv`) を準備します。
+次に、インポートする対象のプロジェクトと、上記のフォーマットに合わせたCSVファイル (`docs/sample-jobs.csv`) を準備します。
 
 **docs/sample-jobs.csv** の例:
 
@@ -39,7 +39,7 @@ Document API,Writing API docs for new endpoint,DOC,055
 uv run wtl project add -n "Example Project"
 
 # プロファイル（雛形）を利用したCSVのインポート
-uv run wtl job import docs/sample_jobs.csv -p "Example Project"
+uv run wtl job import docs/sample-jobs.csv -p "Example Project"
 ```
 
 これにより、「Fix Database」ジョブの `job_code` の値は自動的に `"DEV-001"` として取り込まれます。  
