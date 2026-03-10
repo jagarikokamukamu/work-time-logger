@@ -52,10 +52,17 @@ def init_db():
                 start_time DATETIME NOT NULL,
                 end_time DATETIME,
                 memo TEXT,
+                duration_hours REAL,
                 FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
                 FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE
             )
         """)
+
+        # Migration: Add duration_hours column if it doesn't exist
+        try:
+            cursor.execute("SELECT duration_hours FROM logs LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE logs ADD COLUMN duration_hours REAL")
 
         conn.commit()
 

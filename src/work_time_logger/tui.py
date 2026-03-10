@@ -22,7 +22,20 @@ from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayIn
 class ProjectsTree(Tree):
     BINDINGS = [
         Binding("enter", "select_cursor", "Start Job", show=True),
+        Binding("shift+a", "add_job_log", "Add Log", show=True),
     ]
+
+    def action_add_job_log(self) -> None:
+        """Add a new log assigned to the currently selected job, without starting timer."""
+        node = self.cursor_node
+        if node and not node.allow_expand:
+            job_name = str(node.label)
+            project_name = str(node.parent.label)
+            try:
+                operations.create_assigned_log(project_name, job_name)
+                self.app.refresh_data()
+            except Exception as e:
+                self.app.notify(f"Error: {e}", severity="error")
 
 class LogsTable(DataTable):
     BINDINGS = [
@@ -78,7 +91,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Start Time", "End Time", "Memo"
+                    "ID", "Project", "Job", "Start Time", "End Time", "時間 (h)", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -117,12 +130,27 @@ class WtlApp(App):
                 log_entry["end_time"][:19] if log_entry["end_time"] else "Running..."
             )
             memo = log_entry["memo"] or ""
+            duration_hours = log_entry["duration_hours"]
+
+            # If duration_hours is set, dim the start/end times to show they aren't used
+            if duration_hours is not None:
+                from textual.style import Style
+                from rich.style import Style as RichStyle
+                dim_start = f"[dim]{log_entry['start_time'][:19]}[/dim]"
+                dim_end = f"[dim]{end_time}[/dim]"
+                dur_str = str(duration_hours)
+            else:
+                dim_start = log_entry["start_time"][:19]
+                dim_end = end_time
+                dur_str = ""
+
             self.logs_table.add_row(
                 str(log_entry["id"]),
                 p_name,
                 j_name,
-                log_entry["start_time"][:19],
-                end_time,
+                dim_start,
+                dim_end,
+                dur_str,
                 memo,
                 key=str(log_entry["id"]),
             )
@@ -213,7 +241,7 @@ class WtlApp(App):
 
         col_index = event.coordinate.column
 
-        # Columns mapping: 0:ID, 1:Proj, 2:Job, 3:Start, 4:End, 5:Memo
+        # Columns: 0:ID, 1:Proj, 2:Job, 3:Start, 4:End, 5:Duration(h), 6:Memo
         if col_index in (1, 2):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
@@ -224,8 +252,11 @@ class WtlApp(App):
             value = log_entry["end_time"] or ""
             self.show_edit_overlay(log_entry, 4, value, "date", event.coordinate)
         elif col_index == 5:
+            value = str(log_entry["duration_hours"]) if log_entry["duration_hours"] is not None else ""
+            self.show_edit_overlay(log_entry, 5, value, "duration", event.coordinate)
+        elif col_index == 6:
             value = log_entry["memo"] or ""
-            self.show_edit_overlay(log_entry, 5, value, "memo", event.coordinate)
+            self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
 
     def show_edit_overlay(
         self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
@@ -284,6 +315,14 @@ class WtlApp(App):
         elif self._editing_col_index == 4:
             self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 5:
+            # duration_hours column
+            try:
+                duration = float(val) if val else None
+            except ValueError:
+                self.notify("数値を入力してください (例: 2.5)", severity="error")
+                return
+            self._commit_log_update(self._editing_log_entry, duration_hours=duration)
+        elif self._editing_col_index == 6:
             self._update_memo(self._editing_log_entry, val)
 
         inp.can_focus = False
