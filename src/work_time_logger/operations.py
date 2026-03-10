@@ -283,6 +283,7 @@ def update_log(
     start_time: str,
     end_time: str | None,
     memo: str,
+    duration_hours: float | None = None,
 ) -> None:
     """Update an existing log entry's details."""
     with get_connection() as conn:
@@ -312,10 +313,10 @@ def update_log(
         cursor.execute(
             """
             UPDATE logs
-            SET project_id = ?, job_id = ?, start_time = ?, end_time = ?, memo = ?
+            SET project_id = ?, job_id = ?, start_time = ?, end_time = ?, memo = ?, duration_hours = ?
             WHERE id = ?
             """,
-            (p_id, j_id, start_time, end_time, memo, log_id),
+            (p_id, j_id, start_time, end_time, memo, duration_hours, log_id),
         )
         if cursor.rowcount == 0:
             raise ValueError(f"Log ID {log_id} not found.")
@@ -339,10 +340,38 @@ def list_logs():
         cursor.execute("""
             SELECT logs.id, projects.name as project_name, jobs.name as job_name,
                    jobs.code as job_code,
-                   logs.start_time, logs.end_time, logs.memo
+                   logs.start_time, logs.end_time, logs.memo, logs.duration_hours
             FROM logs
             LEFT JOIN projects ON logs.project_id = projects.id
             LEFT JOIN jobs ON logs.job_id = jobs.id
             ORDER BY logs.start_time DESC
         """)
         return cursor.fetchall()
+
+
+def create_assigned_log(project_name: str, job_name: str) -> int:
+    """Create a new log entry pre-assigned to the given project and job, with zero duration."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+        p_res = cursor.fetchone()
+        if not p_res:
+            raise ValueError(f"Project '{project_name}' not found.")
+        p_id = p_res["id"]
+
+        cursor.execute(
+            "SELECT id FROM jobs WHERE name = ? AND project_id = ?",
+            (job_name, p_id),
+        )
+        j_res = cursor.fetchone()
+        if not j_res:
+            raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
+        j_id = j_res["id"]
+
+        now = datetime.now().replace(microsecond=0).isoformat()
+        cursor.execute(
+            "INSERT INTO logs (project_id, job_id, start_time, end_time, duration_hours) VALUES (?, ?, ?, ?, ?)",
+            (p_id, j_id, now, now, 0.0),
+        )
+        conn.commit()
+        return cursor.lastrowid

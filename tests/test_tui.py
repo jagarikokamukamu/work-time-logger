@@ -49,7 +49,7 @@ async def test_tui_startup_population():
         # Check table
         assert table.row_count == 1
         row = table.get_row_at(0)
-        assert len(row) == 6
+        assert len(row) == 7
         assert row[1] == "Test Project"
         assert row[2] == "Test Job"
 

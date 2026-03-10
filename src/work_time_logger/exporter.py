@@ -21,6 +21,9 @@ ticket = "None"
 [export]
 # Which keys from the extracted attributes to use to group notes and time together
 group_by = ["type", "ticket"]
+# Aggregated time precision and rounding: "round", "floor", or "ceil"
+time_precision = 2
+time_rounding = "round"
 
 [export.format]
 # How to format notes for a single item and how to separate multiple items
@@ -75,6 +78,8 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     note_item_format = export_config.get("format", {}).get("note_item", "")
     note_separator = export_config.get("format", {}).get("note_separator", "/")
     columns_config = export_config.get("columns", {})
+    time_precision = export_config.get("time_precision", 2)
+    time_rounding = export_config.get("time_rounding", "round")
 
     from datetime import datetime
     logs = operations.list_logs()
@@ -109,15 +114,20 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         row_data["job_name"] = log["job_name"] or ""
         
         # Calculate time in hours
+        # Prefer explicit duration_hours, fall back to end-start calculation
         start_time = log["start_time"]
         end_time = log["end_time"]
-        
-        time_hours = 0.0
-        if start_time and end_time:
+        duration_hours = log["duration_hours"]
+
+        if duration_hours is not None:
+            time_hours = duration_hours
+        elif start_time and end_time:
             start_dt = datetime.fromisoformat(start_time)
             end_dt = datetime.fromisoformat(end_time)
             duration = end_dt - start_dt
             time_hours = duration.total_seconds() / 3600.0
+        else:
+            time_hours = 0.0
             
         row_data["time_hours"] = round(time_hours, 2)
         extracted_data.append(row_data)
@@ -136,6 +146,17 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         
         # Sum time
         total_time = sum(item.get("time_hours", 0.0) for item in group_items)
+
+        # Apply rounding
+        import math
+        if time_rounding == "floor":
+            factor = 10 ** time_precision
+            agg_time = math.floor(total_time * factor) / factor
+        elif time_rounding == "ceil":
+            factor = 10 ** time_precision
+            agg_time = math.ceil(total_time * factor) / factor
+        else:
+            agg_time = round(total_time, time_precision)
         
         # Aggregate notes
         notes = []
@@ -151,7 +172,7 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         
         # Take the first item to represent the grouped data
         representative_item = group_items[0].copy()
-        representative_item["aggregated_time"] = round(total_time, 2)
+        representative_item["aggregated_time"] = agg_time
         representative_item["aggregated_notes"] = aggregated_notes
         
         # Map to final columns
