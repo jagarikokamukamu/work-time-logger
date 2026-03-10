@@ -38,6 +38,11 @@ uv run wtlui
 
 > TUI内でヘルプが必要な場合は `h`（または `F1`）キーを押してキーバインド一覧を開いてください。
 
+### Customization (`~/.wtl/profile.toml`)
+
+- **Flexible Parsing**: Automatically generate tags and identifiers (`job_code`) from your CSV during import using `[import.mapping]`.
+- **Advanced Export Processing**: Define regular expressions in `[export.extract]` to parse metadata from your `job_code`, group statistics in `[export]`, and format customized CSV columns in `[export.columns]`.
+
 ## 開発とテスト
 
 - `pytest`: テストスイートの実行（`uv run pytest`）

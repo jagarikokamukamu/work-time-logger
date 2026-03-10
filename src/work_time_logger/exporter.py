@@ -9,12 +9,12 @@ from operator import itemgetter
 
 from . import operations
 
-DEFAULT_PROFILE_TEMPLATE = """[extract]
+DEFAULT_PROFILE_TEMPLATE = """[export.extract]
 # Extract attributes from job_code using regex named groups
 job_code = "^(?P<type>[A-Za-z]+)-(?P<ticket>\\\\d+)$"
 
-[defaults]
-# Default values for attributes not found in job_code
+[export.defaults]
+# Default values if regex extraction doesn't match or is empty
 type = "General"
 ticket = "None"
 
@@ -35,7 +35,7 @@ note_separator = " / "
 "Details" = "{aggregated_notes}"
 
 [import.mapping]
-# Mapping of how to construct job attributes from CSV columns during import
+# How to map CSV columns to job attributes during import
 name = "{name}"
 description = "{description}"
 job_code = "{type}-{ticket}"
@@ -51,19 +51,26 @@ def export_logs(profile_path: str, output_path: str):
     with open(profile_path, "rb") as f:
         profile = tomllib.load(f)
 
-    extract_config = profile.get("extract", {})
-    defaults_config = profile.get("defaults", {})
+    # We now look for extract and defaults underneath the 'export' section if available.
+    # For backwards compatibility with older files involving [extract] / [defaults]:
     export_config = profile.get("export", {})
+    
+    extract_rules = export_config.get("extract", profile.get("extract", {}))
+    defaults_config = export_config.get("defaults", profile.get("defaults", {}))
+
+    # Compile regexes safely
+    compiled_regexes = {}
+    for var, pattern in extract_rules.items():
+        try:
+            compiled_regexes[var] = re.compile(pattern)
+        except re.error as e:
+            print(f"Warning: Could not compile regex for '{var}': {e}")
+            compiled_regexes[var] = None # Store None for invalid regexes
 
     group_by_keys = export_config.get("group_by", [])
     note_item_format = export_config.get("format", {}).get("note_item", "")
     note_separator = export_config.get("format", {}).get("note_separator", "/")
     columns_config = export_config.get("columns", {})
-
-    job_code_regex = extract_config.get("job_code", "")
-    
-    # Compile regex if provided
-    job_code_pattern = re.compile(job_code_regex) if job_code_regex else None
 
     logs = operations.list_logs()
     
@@ -76,10 +83,13 @@ def export_logs(profile_path: str, output_path: str):
         
         # Extract from job_code
         job_code = log["job_code"] or ""
-        if job_code_pattern:
-            match = job_code_pattern.search(job_code)
-            if match:
-                row_data.update(match.groupdict())
+        
+        # Apply all valid regexes for extractions (including job_code)
+        for var, pattern in compiled_regexes.items():
+            if pattern:
+                match = pattern.search(job_code if var == "job_code" else row_data.get(var, ""))
+                if match:
+                    row_data.update(match.groupdict())
                 
         # Get standard database fields
         row_data["memo"] = log["memo"] or ""
