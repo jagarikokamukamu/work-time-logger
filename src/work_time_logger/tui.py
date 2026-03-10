@@ -22,7 +22,7 @@ from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayIn
 class ProjectsTree(Tree):
     BINDINGS = [
         Binding("enter", "select_cursor", "Start Job", show=True),
-        Binding("shift+a", "add_job_log", "Add Log", show=True),
+        Binding("a", "add_job_log", "Add Log", show=True),
     ]
 
     def action_add_job_log(self) -> None:
@@ -91,7 +91,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Start Time", "End Time", "時間 (h)", "Memo"
+                    "ID", "Project", "Job", "Start Time", "End Time", "Duration (h)", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -134,17 +134,27 @@ class WtlApp(App):
             memo = log_entry["memo"] or ""
             duration_hours = log_entry["duration_hours"]
 
-            # If duration_hours is set, dim the start/end times to show they aren't used
             if duration_hours is not None:
-                from textual.style import Style
-                from rich.style import Style as RichStyle
-                dim_start = f"[dim]{log_entry['start_time'][:19]}[/dim]"
-                dim_end = f"[dim]{end_time}[/dim]"
+                # duration_hours manually set: dim start/end with explicit subtle gray
+                dim_start = f"[#585858]{log_entry['start_time'][:19]}[/#585858]"
+                dim_end   = f"[#585858]{end_time}[/#585858]"
                 dur_str = str(duration_hours)
             else:
+                # Auto-calculate from start/end and display in a muted teal
+                # (similar luminance to default text, shifted hue — not eye-catching)
                 dim_start = log_entry["start_time"][:19]
-                dim_end = end_time
-                dur_str = ""
+                dim_end   = end_time
+                try:
+                    if log_entry["start_time"] and log_entry["end_time"]:
+                        from datetime import datetime
+                        s = datetime.fromisoformat(log_entry["start_time"])
+                        e = datetime.fromisoformat(log_entry["end_time"])
+                        calc = round((e - s).total_seconds() / 3600, 2)
+                        dur_str = f"[#79a8a8]{calc}[/#79a8a8]"
+                    else:
+                        dur_str = ""
+                except Exception:
+                    dur_str = ""
 
             self.logs_table.add_row(
                 str(log_entry["id"]),
