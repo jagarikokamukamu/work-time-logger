@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WTL Profile",
+  "description": "Configuration profile for Work Time Logger (profile.toml)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "import": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mapping": {
+          "type": "object",
+          "description": "Jinja2 templates that map CSV columns to job attributes on import.",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Jinja2 template for the job name. Available variables: all CSV column names.",
+              "examples": [
+                "{{ name }}"
+              ]
+            },
+            "description": {
+              "type": "string",
+              "description": "Jinja2 template for the job description.",
+              "examples": [
+                "{{ description }}"
+              ]
+            },
+            "job_code": {
+              "type": "string",
+              "description": "Jinja2 template for the job code used in export grouping.",
+              "examples": [
+                "{{ type }}-{{ ticket }}",
+                "{{ project_code }}_{{ phase }}_{{ ticket }}"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extract": {
+          "type": "object",
+          "description": "Regex patterns (with named groups) to extract variables from stored values.",
+          "additionalProperties": {
+            "type": "string",
+            "description": "Regex with named groups, e.g. (?P<var>pattern)"
+          },
+          "properties": {
+            "job_code": {
+              "type": "string",
+              "description": "Regex to decompose job_code into named variables.",
+              "examples": [
+                "^(?P<type>[A-Za-z]+)-(?P<ticket>\\d+)$",
+                "^(?P<project_code>[^_]*)_(?P<phase>[^_]*)_(?P<ticket>[^_]*)$"
+              ]
+            }
+          }
+        },
+        "defaults": {
+          "type": "object",
+          "description": "Default values for variables when regex extraction yields no match.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "group_by": {
+          "type": "array",
+          "description": "List of variable names to group logs by before aggregating time and notes.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [
+            [
+              "type",
+              "ticket"
+            ],
+            [
+              "project_code",
+              "phase"
+            ]
+          ]
+        },
+        "time_precision": {
+          "type": "integer",
+          "description": "Number of decimal places for aggregated_time.",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 10
+        },
+        "time_rounding": {
+          "type": "string",
+          "description": "Rounding method for aggregated_time.",
+          "enum": [
+            "round",
+            "floor",
+            "ceil"
+          ],
+          "default": "round"
+        },
+        "format": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Format settings for aggregated notes.",
+          "properties": {
+            "note_item": {
+              "type": "string",
+              "description": "Jinja2 template for each log's note entry. Available: all extracted variables + memo, time_hours, project_name, job_name.",
+              "examples": [
+                "{{ memo }}",
+                "{% if ticket %}[#{{ ticket }}] {% endif %}{{ memo }}",
+                "{% if prefix %}({{ prefix }}:{{ time_hours }}):{% endif %}{{ memo }}"
+              ]
+            },
+            "note_separator": {
+              "type": "string",
+              "description": "String used to join multiple note_item values.",
+              "default": " / ",
+              "examples": [
+                " / ",
+                "/",
+                ", "
+              ]
+            }
+          }
+        },
+        "columns": {
+          "type": "object",
+          "description": "Mapping from output CSV column names to Jinja2 templates. Available: all extracted variables + aggregated_time, aggregated_notes, project_name, job_name.",
+          "additionalProperties": {
+            "type": "string",
+            "description": "Jinja2 template for the column value.",
+            "examples": [
+              "{{ type }}",
+              "{{ aggregated_time }}",
+              "{{ aggregated_notes }}"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
