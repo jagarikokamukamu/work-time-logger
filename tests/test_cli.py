@@ -56,11 +56,15 @@ def test_job_import(tmp_path):
     runner.invoke(cli.app, ["project", "add", "-n", "Import Project"])
     csv_file = tmp_path / "jobs.csv"
     csv_file.write_text("name,description\nJob1,Desc1\nJob2,Desc2")
-    
-    result = runner.invoke(cli.app, ["job", "import", str(csv_file), "-p", "Import Project"])
+
+    # Use a minimal profile so the user's ~/.wtl/profile.toml import.mapping doesn't interfere
+    profile_file = tmp_path / "profile.toml"
+    profile_file.write_text("[import.mapping]\nname = \"{{ name }}\"\ndescription = \"{{ description }}\"\n")
+
+    result = runner.invoke(cli.app, ["job", "import", str(csv_file), "-p", "Import Project", "--profile", str(profile_file)])
     assert result.exit_code == 0
     assert "Imported 2 jobs" in result.stdout
-    
+
     result2 = runner.invoke(cli.app, ["job", "list", "--project", "Import Project"])
     assert "Job1" in result2.stdout
     assert "Job2" in result2.stdout

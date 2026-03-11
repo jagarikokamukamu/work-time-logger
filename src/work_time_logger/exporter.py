@@ -4,12 +4,28 @@ import os
 import csv
 import re
 import tomllib
-from datetime import date as date_type
+import math
+from datetime import date as date_type, datetime
 from itertools import groupby
+
+from jinja2 import Environment, Undefined
 
 from . import operations
 
-DEFAULT_PROFILE_TEMPLATE = """[export.extract]
+# Use a silent Undefined so missing vars render as empty string
+_jinja_env = Environment(undefined=Undefined)
+
+
+def _render(template_str: str, context: dict) -> str:
+    """Render a Jinja2 template string with the given context."""
+    try:
+        return _jinja_env.from_string(template_str).render(**context)
+    except Exception:
+        return ""
+
+
+DEFAULT_PROFILE_TEMPLATE = """\
+[export.extract]
 # Extract attributes from job_code using regex named groups
 job_code = "^(?P<type>[A-Za-z]+)-(?P<ticket>\\\\d+)$"
 
@@ -26,42 +42,43 @@ time_precision = 2
 time_rounding = "round"
 
 [export.format]
-# How to format notes for a single item and how to separate multiple items
-note_item = "[{project_name}/{job_name}] {time_hours}h: {memo}"
+# Jinja2 template for each note item. Variables: all extracted fields + memo, time_hours, project_name, job_name
+note_item = "[{{ project_name }}/{{ job_name }}] {{ time_hours }}h: {{ memo }}"
 note_separator = " / "
 
 [export.columns]
-# Mapping of final CSV column headers to the string template
-"Type" = "{type}"
-"Ticket" = "{ticket}"
-"Duration (Hours)" = "{aggregated_time}"
-"Details" = "{aggregated_notes}"
+# Mapping of final CSV column headers to Jinja2 templates
+"Type"             = "{{ type }}"
+"Ticket"           = "{{ ticket }}"
+"Duration (Hours)" = "{{ aggregated_time }}"
+"Details"          = "{{ aggregated_notes }}"
 
 [import.mapping]
-# How to map CSV columns to job attributes during import
-name = "{name}"
-description = "{description}"
-job_code = "{type}-{ticket}"
+# How to map CSV columns to job attributes during import (Jinja2 templates)
+name        = "{{ name }}"
+description = "{{ description }}"
+job_code    = "{{ type }}-{{ ticket }}"
 """
+
 
 def export_logs(profile_path: str, output_path: str, target_date: str | None = None):
     """Export logs based on the provided TOML profile. Generates a default profile if missing.
-    
+
     Args:
         profile_path: Path to the TOML profile file.
         output_path: Path for the output CSV file.
         target_date: Date string in YYYY-MM-DD format to filter logs by. If None, all logs are exported.
     """
-    
+
     if not os.path.exists(profile_path):
         with open(profile_path, "w", encoding="utf-8") as f:
             f.write(DEFAULT_PROFILE_TEMPLATE)
-            
+
     with open(profile_path, "rb") as f:
         profile = tomllib.load(f)
 
     export_config = profile.get("export", {})
-    
+
     extract_rules = export_config.get("extract", {})
     defaults_config = export_config.get("defaults", {})
 
@@ -72,16 +89,15 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
             compiled_regexes[var] = re.compile(pattern)
         except re.error as e:
             print(f"Warning: Could not compile regex for '{var}': {e}")
-            compiled_regexes[var] = None # Store None for invalid regexes
+            compiled_regexes[var] = None
 
     group_by_keys = export_config.get("group_by", [])
-    note_item_format = export_config.get("format", {}).get("note_item", "")
+    note_item_template = export_config.get("format", {}).get("note_item", "")
     note_separator = export_config.get("format", {}).get("note_separator", "/")
     columns_config = export_config.get("columns", {})
     time_precision = export_config.get("time_precision", 2)
     time_rounding = export_config.get("time_rounding", "round")
 
-    from datetime import datetime
     logs = operations.list_logs()
 
     # Filter by date if provided
@@ -91,29 +107,24 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
             if log["start_time"] and log["start_time"][:10] == target_date
         ]
 
-    # First extract all variables into a flat list of dictionaries
+    # Extract all variables into a flat list of dicts
     extracted_data = []
 
     for log in logs:
-        # Base row populated with defaults
         row_data = defaults_config.copy()
-        
-        # Extract from job_code
+
         job_code = log["job_code"] or ""
-        
-        # Apply all valid regexes for extractions (including job_code)
+
         for var, pattern in compiled_regexes.items():
             if pattern:
                 match = pattern.search(job_code if var == "job_code" else row_data.get(var, ""))
                 if match:
                     row_data.update(match.groupdict())
-                
-        # Get standard database fields
+
         row_data["memo"] = log["memo"] or ""
         row_data["project_name"] = log["project_name"] or ""
         row_data["job_name"] = log["job_name"] or ""
-        
-        # Calculate time in hours
+
         # Prefer explicit duration_hours, fall back to end-start calculation
         start_time = log["start_time"]
         end_time = log["end_time"]
@@ -124,31 +135,26 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         elif start_time and end_time:
             start_dt = datetime.fromisoformat(start_time)
             end_dt = datetime.fromisoformat(end_time)
-            duration = end_dt - start_dt
-            time_hours = duration.total_seconds() / 3600.0
+            time_hours = (end_dt - start_dt).total_seconds() / 3600.0
         else:
             time_hours = 0.0
-            
+
         row_data["time_hours"] = round(time_hours, 2)
         extracted_data.append(row_data)
 
-    # Grouping
-    # Sort data by group_by keys first, required by itertools.groupby
+    # Group
     def group_key_func(item):
         return tuple(item.get(k, "") for k in group_by_keys)
 
     extracted_data.sort(key=group_key_func)
-    
+
     aggregated_results = []
-    
+
     for key_tuple, group_iter in groupby(extracted_data, key=group_key_func):
         group_items = list(group_iter)
-        
-        # Sum time
+
         total_time = sum(item.get("time_hours", 0.0) for item in group_items)
 
-        # Apply rounding
-        import math
         if time_rounding == "floor":
             factor = 10 ** time_precision
             agg_time = math.floor(total_time * factor) / factor
@@ -157,35 +163,28 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
             agg_time = math.ceil(total_time * factor) / factor
         else:
             agg_time = round(total_time, time_precision)
-        
-        # Aggregate notes
+
+        # Aggregate notes using Jinja2
         notes = []
         for item in group_items:
-            if note_item_format:
-                try:
-                    formatted_note = note_item_format.format(**item)
-                    notes.append(formatted_note)
-                except KeyError:
-                    pass
-        
+            if note_item_template:
+                rendered = _render(note_item_template, item)
+                if rendered:
+                    notes.append(rendered)
+
         aggregated_notes = note_separator.join(notes)
-        
-        # Take the first item to represent the grouped data
+
         representative_item = group_items[0].copy()
         representative_item["aggregated_time"] = agg_time
         representative_item["aggregated_notes"] = aggregated_notes
-        
-        # Map to final columns
+
+        # Map to final columns using Jinja2
         final_row = {}
         for col_name, value_template in columns_config.items():
-            try:
-                final_row[col_name] = value_template.format(**representative_item)
-            except KeyError:
-                final_row[col_name] = ""
-                
+            final_row[col_name] = _render(value_template, representative_item)
+
         aggregated_results.append(final_row)
 
-    # Write CSV
     if not aggregated_results:
         print("No logs matches the extract configuration or logs are empty.")
         return 0

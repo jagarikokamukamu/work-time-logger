@@ -90,11 +90,22 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
     """Import jobs from a CSV file into a given project."""
     import os
     import tomllib
+    from jinja2 import Environment, Undefined
+
+    jinja_env = Environment(undefined=Undefined)
+
+    def render(template_str: str, context: dict) -> str | None:
+        if not template_str:
+            return None
+        try:
+            return jinja_env.from_string(template_str).render(**context) or None
+        except Exception:
+            return None
 
     mapping = {
-        "name": "{name}",
-        "description": "{description}",
-        "code": "{code}"
+        "name": "{{ name }}",
+        "description": "{{ description }}",
+        "code": "{{ code }}"
     }
 
     if profile_path and os.path.exists(profile_path):
@@ -124,28 +135,16 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
             reader = csv.DictReader(f)
             count = 0
             for row in reader:
-                def format_field(template):
-                    if not template:
-                        return None
-                    try:
-                        return template.format(**row)
-                    except KeyError:
-                        return None
+                ctx = dict(row)
 
-                name = format_field(mapping["name"])
-                if not name and "name" in row:
-                    name = row["name"]
-                
+                name = render(mapping["name"], ctx)
+                if not name:
+                    name = row.get("name")
                 if not name:
                     continue
 
-                description = format_field(mapping["description"])
-                if description is None:
-                    description = row.get("description", "")
-
-                code = format_field(mapping["code"])
-                if code is None:
-                    code = row.get("code")
+                description = render(mapping["description"], ctx) or row.get("description", "")
+                code = render(mapping["code"], ctx) or row.get("code")
 
                 try:
                     cursor.execute(
@@ -158,6 +157,7 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
                     pass
         conn.commit()
         return count
+
 
 
 def start_log(project_name: str = None, job_name: str = None):
