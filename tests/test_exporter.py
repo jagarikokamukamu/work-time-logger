@@ -103,3 +103,66 @@ note_separator = "/"
     assert "3.2" in content
     # Look for both orders since grouping output order might not be guaranteed
     assert "(PRE:1.1):Meeting/(PRE:2.1):Progress" in content or "(PRE:2.1):Progress/(PRE:1.1):Meeting" in content
+
+
+def test_time_precision_and_rounding(tmp_path: Path):
+    """time_precision and time_rounding should affect aggregated_time correctly."""
+    operations.add_project("PrecProject")
+    # duration_hours=2.16: has 2 decimal places, so precision=1 will actually round it
+    # As a float, 2.16 ≈ 2.1599..., which is > 2.15, so round(2.16, 1) = 2.2 deterministically
+    operations.add_job("JobA", "PrecProject", code="T-001")
+    log_id = operations.create_empty_log()
+    operations.update_log(
+        log_id, "PrecProject", "JobA",
+        "2024-02-01T10:00:00", "2024-02-01T10:00:00",
+        "task",
+        duration_hours=2.16,
+    )
+
+    profile_path = tmp_path / "profile.toml"
+
+    def run_export(precision: int, rounding: str) -> str:
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(f"""
+[export.extract]
+job_code = "^(?P<kind>[A-Z]+)-(?P<num>\\\\d+)$"
+[export]
+group_by = ["kind"]
+time_precision = {precision}
+time_rounding = "{rounding}"
+[export.format]
+note_item = "{{{{ time_hours }}}}"
+note_separator = "/"
+[export.columns]
+"time" = "{{{{ aggregated_time }}}}"
+"note" = "{{{{ aggregated_notes }}}}"
+""")
+        out = tmp_path / f"out_{precision}_{rounding}.csv"
+        exporter.export_logs(str(profile_path), str(out), target_date=None)
+        return out.read_text(encoding="utf-8")
+
+    def get_time_col(content: str) -> float:
+        """Extract the 'time' column value from the first data row."""
+        data_row = content.strip().split("\n")[1]
+        return float(data_row.split(",")[0])
+
+    def get_note_col(content: str) -> float:
+        """Extract the 'note' column (time_hours in note_item) from the first data row."""
+        data_row = content.strip().split("\n")[1]
+        return float(data_row.split(",")[1])
+
+    # precision=1, round -> 2.16 rounds to 2.2
+    # Verifies BOTH aggregated_time AND time_hours in note_item are rounded
+    c = run_export(1, "round")
+    assert get_time_col(c) == 2.2       # aggregated_time
+    assert get_note_col(c) == 2.2       # time_hours in note_item
+
+    # precision=0, floor -> 2.16 floors to 2
+    assert get_time_col(run_export(0, "floor")) == 2.0
+
+    # precision=0, ceil -> 2.16 ceils to 3
+    assert get_time_col(run_export(0, "ceil")) == 3.0
+
+
+
+

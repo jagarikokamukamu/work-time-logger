@@ -24,6 +24,17 @@ def _render(template_str: str, context: dict) -> str:
         return ""
 
 
+def _apply_rounding(value: float, precision: int, method: str) -> float:
+    """Apply rounding method (round/floor/ceil) to value at the given decimal precision."""
+    factor = 10 ** precision
+    if method == "floor":
+        return math.floor(value * factor) / factor
+    elif method == "ceil":
+        return math.ceil(value * factor) / factor
+    else:
+        return round(value, precision)
+
+
 DEFAULT_PROFILE_TEMPLATE = """\
 [export.extract]
 # Extract attributes from job_code using regex named groups
@@ -139,7 +150,10 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         else:
             time_hours = 0.0
 
-        row_data["time_hours"] = round(time_hours, 2)
+        # time_hours for display in note_item: rounded to time_precision
+        row_data["time_hours"] = _apply_rounding(time_hours, time_precision, time_rounding)
+        # _raw_time_hours for accurate aggregation summing (no pre-rounding)
+        row_data["_raw_time_hours"] = time_hours
         extracted_data.append(row_data)
 
     # Group
@@ -153,16 +167,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     for key_tuple, group_iter in groupby(extracted_data, key=group_key_func):
         group_items = list(group_iter)
 
-        total_time = sum(item.get("time_hours", 0.0) for item in group_items)
+        total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
 
-        if time_rounding == "floor":
-            factor = 10 ** time_precision
-            agg_time = math.floor(total_time * factor) / factor
-        elif time_rounding == "ceil":
-            factor = 10 ** time_precision
-            agg_time = math.ceil(total_time * factor) / factor
-        else:
-            agg_time = round(total_time, time_precision)
+        agg_time = _apply_rounding(total_time, time_precision, time_rounding)
 
         # Aggregate notes using Jinja2
         notes = []
