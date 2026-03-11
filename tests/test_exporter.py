@@ -73,23 +73,23 @@ group_by = [
 ]
 
 [export.format]
-note_item = "({prefix}:{time_hours}):{desc}"
+note_item = "({{ prefix }}:{{ time_hours }}):{{ desc }}"
 note_separator = "/"
 
 [export.columns]
-"proj" = "{proj}"
-"subject" = "Proj_{proj}"
-"sub" = "{sub}"
-"load" = "{load}"
-"loss" = "{loss}"
-"cost" = "{cost}"
-"item" = "{item}"
-"work" = "{work}"
-"rev" = "{rev}"
-"desc" = "{desc}"
-"branch" = "{branch}"
-"time_col" = "{aggregated_time}"
-"note_col" = "{aggregated_notes}"
+"proj" = "{{ proj }}"
+"subject" = "Proj_{{ proj }}"
+"sub" = "{{ sub }}"
+"load" = "{{ load }}"
+"loss" = "{{ loss }}"
+"cost" = "{{ cost }}"
+"item" = "{{ item }}"
+"work" = "{{ work }}"
+"rev" = "{{ rev }}"
+"desc" = "{{ desc }}"
+"branch" = "{{ branch }}"
+"time_col" = "{{ aggregated_time }}"
+"note_col" = "{{ aggregated_notes }}"
         ''')
         
     output_path = tmp_path / "output.csv"
