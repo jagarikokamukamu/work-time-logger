@@ -54,43 +54,77 @@ class DashboardScreen(Screen):
         self.period = "week"  # "week" or "month"
 
     def compose(self) -> ComposeResult:
+        """Compose the dashboard screen widgets.
+
+        Returns:
+            ComposeResult: The standard Textual compose result.
+        """
         yield Header()
         with Container(id="dashboard-container"):
             with Horizontal(id="period-selector"):
-                yield Button("Weekly (W)", id="btn-week", variant="primary", classes="period-btn")
+                yield Button(
+                    "Weekly (W)", id="btn-week", variant="primary", classes="period-btn"
+                )
                 yield Button("Monthly (M)", id="btn-month", classes="period-btn")
-            
+
             with Vertical():
                 yield Static("Project Distribution", classes="section-title")
                 yield DataTable(id="project-stats-table")
-                
+
                 yield Static("Daily Activity", classes="section-title")
                 yield Static(id="activity-chart")
         yield Footer()
 
     def on_mount(self) -> None:
+        """Dashboard screen mount handler. Triggers the initial data fetch."""
         self.update_dashboard()
 
     def action_set_period(self, period: str) -> None:
+        """Switch the dashboard view between weekly and monthly periods.
+
+        Args:
+            period (str): Either 'week' or 'month'.
+        """
         self.period = period
         # Update button styles
-        self.query_one("#btn-week").variant = "primary" if period == "week" else "default"
-        self.query_one("#btn-month").variant = "primary" if period == "month" else "default"
+        self.query_one("#btn-week").variant = (
+            "primary" if period == "week" else "default"
+        )
+        self.query_one("#btn-month").variant = (
+            "primary" if period == "month" else "default"
+        )
         self.update_dashboard()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events to switch the display period.
+
+        Args:
+            event (Button.Pressed): The button press event.
+        """
         if event.button.id == "btn-week":
             self.action_set_period("week")
         elif event.button.id == "btn-month":
             self.action_set_period("month")
 
     def update_dashboard(self) -> None:
+        """Fetch data and update all dashboard components.
+
+        Calculates:
+        1. Start/End dates for the selected period (week or month).
+        2. Filtered logs for that period.
+        3. Project hour totals and percentages.
+        4. Daily aggregated totals for the activity chart.
+
+        Updates the project distribution table and the ASCII sparkline chart.
+        """
         logs = operations.list_logs()
         now = datetime.now()
-        
+
         if self.period == "week":
             # Start of current week (Monday)
-            start_date = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = (now - timedelta(days=now.weekday())).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             days_count = 7
         else:
             # Start of current month
@@ -114,7 +148,7 @@ class DashboardScreen(Screen):
         table.clear()
         if not table.columns:
             table.add_columns("Project", "Hours", "Percentage", "Bar")
-        
+
         project_totals = {}
         total_period_hours = 0.0
         for log in period_logs:
@@ -146,7 +180,7 @@ class DashboardScreen(Screen):
                     s = datetime.fromisoformat(log["start_time"])
                     e = datetime.fromisoformat(log["end_time"])
                     h = (e - s).total_seconds() / 3600.0
-                daily_totals[day_idx] += (h or 0.0)
+                daily_totals[day_idx] += h or 0.0
 
         max_h = max(daily_totals) if daily_totals else 0
         chart_lines = []
@@ -156,17 +190,22 @@ class DashboardScreen(Screen):
             d = start_date + timedelta(days=i)
             header += f"{d.day:2} "
         chart_lines.append(header)
-        
+
         # Simple Sparkline-like representation
         spark = "Hrs: "
         for h in daily_totals:
-            if h == 0: spark += " . "
-            elif h < 2: spark += " ▂ "
-            elif h < 4: spark += " ▃ "
-            elif h < 6: spark += " ▅ "
-            else: spark += " █ "
+            if h == 0:
+                spark += " . "
+            elif h < 2:
+                spark += " ▂ "
+            elif h < 4:
+                spark += " ▃ "
+            elif h < 6:
+                spark += " ▅ "
+            else:
+                spark += " █ "
         chart_lines.append(spark)
-        
+
         # Data values
         vals = "Val: "
         for h in daily_totals:
