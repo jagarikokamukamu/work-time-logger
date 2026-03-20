@@ -7,11 +7,6 @@ from .db import get_connection, init_db
 
 
 def setup():
-    """Initialize the database configuration and tables."""
-    init_db()
-
-
-def setup():
     """Initialize the database configuration and tables.
 
     This function sets up the base directory and creates the SQLite tables
