@@ -1,0 +1,20 @@
+@  purn jagarikokamukamu@gmail.com 2026-03-20 23:43:31 push-xypyxrrqyxol* 4546
+│  fix: downgrade Python to 3.13 and sync dependencies to resolve import errors and VS Code compatibility
+○  pkqq jagarikokamukamu@gmail.com 2026-03-20 23:33:05 562d
+│  docs: update docstrings to Google style and refactor CLI options for consistency
+○  uxym jagarikokamukamu@gmail.com 2026-03-20 22:34:45 3cef
+│  chore: add pydocstyle rules to ruff config
+○  ywox jagarikokamukamu@gmail.com 2026-03-20 21:40:07 ca5d
+│  feat: implement Textual user interface for Work Time Logger.
+○  wrpl jagarikokamukamu@gmail.com 2026-03-20 21:06:07 19ff
+│  feat: introduce a comprehensive command-line interface for managing work time logs, projects, and jobs, along with its tests and documentation.
+○  otlk jagarikokamukamu@gmail.com 2026-03-20 20:43:22 7b70
+│  docs: update ReadMe
+○  nspk jagarikokamukamu@gmail.com 2026-03-20 20:43:07 afed
+│  docs: add CLI reference
+○  wtvv jagarikokamukamu@gmail.com 2026-03-20 18:31:24 ee57
+│  時刻更新のバリデーションを追加（データベース破損防止）
+○  kwnw jagarikokamukamu@gmail.com 2026-03-20 18:19:28 9af8
+│  TUIの時刻表示・入力を HH:mm 形式に変更
+○  szst jagarikokamukamu@gmail.com 2026-03-20 17:19:40 fc6a
+│  feat(tui): make duration increment step configurable via profile.toml
