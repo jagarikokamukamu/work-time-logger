@@ -154,7 +154,8 @@ class OverlayInput(Input):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.edit_mode = "memo"  # "memo", "date_only", "time_only", "date" (legacy)
+        self.edit_mode = "memo"  # "memo", "date_only", "time_only", "date" (legacy), "duration"
+        self.duration_step = 0.1
 
     def action_cancel(self) -> None:
         self.can_focus = False
@@ -235,10 +236,10 @@ class OverlayInput(Input):
                         pass
             
             elif self.edit_mode == "duration":
-                # Float hours, increment by 0.25
+                # Float hours, increment by duration_step
                 try:
                     curr_val = float(val) if val.strip() else 0.0
-                    new_val = max(0.0, curr_val + (delta * 0.25))
+                    new_val = max(0.0, curr_val + (delta * self.duration_step))
                     # Round to 2 decimal places to avoid float precision issues
                     self.value = str(round(new_val, 2))
                 except ValueError:

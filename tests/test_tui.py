@@ -233,7 +233,8 @@ async def test_tui_arrow_key_adjustment():
         assert overlay.edit_mode == "duration"
         overlay.value = "1.0"
         await pilot.press("up")
-        assert overlay.value == "1.25"
+        # Default step is now 0.1 (as set in tests or by default)
+        assert overlay.value == "1.1"
         await pilot.press("down")
         assert overlay.value == "1.0"
         await pilot.press("escape")

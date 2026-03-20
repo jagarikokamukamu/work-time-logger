@@ -86,6 +86,19 @@ class WtlApp(App):
         self.filter_job = None
         self.filter_date_start = None
         self.filter_date_end = None
+        
+        # Load duration step from profile
+        self.duration_step = 0.1
+        try:
+            profile_path = operations.db.DB_DIR / "profile.toml"
+            if profile_path.exists():
+                import tomllib
+                with open(profile_path, "rb") as f:
+                    config = tomllib.load(f)
+                    self.duration_step = config.get("tui", {}).get("duration_step", 0.1)
+        except (OSError, tomllib.TOMLDecodeError):
+            # Profile is optional; if missing or broken, TUI will use defaults.
+            pass
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -107,7 +120,9 @@ class WtlApp(App):
     def on_mount(self) -> None:
         """Called when app starts."""
         self.refresh_data()
-        self.query_one("#edit-overlay").can_focus = False
+        overlay = self.query_one("#edit-overlay", OverlayInput)
+        overlay.can_focus = False
+        overlay.duration_step = self.duration_step
         self.logs_table.focus()
 
     def refresh_data(self) -> None:
