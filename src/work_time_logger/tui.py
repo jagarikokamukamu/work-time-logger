@@ -77,10 +77,15 @@ class WtlApp(App):
         Binding("e", "export_logs", "Export Logs", show=True),
         Binding("v", "show_summary", "Daily Summary", show=True),
         Binding("d", "show_dashboard", "Dashboard", show=True),
+        Binding("f", "show_filter", "Filter", show=True),
     ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.filter_project = None
+        self.filter_job = None
+        self.filter_date_start = None
+        self.filter_date_end = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -93,7 +98,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Date", "Start Time", "End Time", "Memo"
+                    "ID", "Project", "Job", "Date", "Start Time", "End Time", "Duration (h)", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -125,7 +130,21 @@ class WtlApp(App):
         # Populate Logs table
         self.logs_table.clear()
         
-        self.logs = operations.list_logs()
+        # Apply current filters
+        all_logs = operations.list_logs()
+        filtered = []
+        for log in all_logs:
+            if self.filter_project and log["project_name"] != self.filter_project:
+                continue
+            if self.filter_job and log["job_name"] != self.filter_job:
+                continue
+            log_date = log["start_time"][:10]
+            if self.filter_date_start and log_date < self.filter_date_start:
+                continue
+            if self.filter_date_end and log_date > self.filter_date_end:
+                continue
+            filtered.append(log)
+        self.logs = filtered
         for log_entry in self.logs:
             p_name = log_entry["project_name"] or "[未割り当て]"
             j_name = log_entry["job_name"] or "[未割り当て]"
@@ -145,13 +164,36 @@ class WtlApp(App):
 
             start_disp = format_rel(start_iso)
             end_disp = format_rel(end_iso)
+            memo = log_entry["memo"] or ""
+            duration_hours = log_entry["duration_hours"]
+
+            if duration_hours is not None:
+                # duration_hours manually set: strike and dim start/end
+                dim_start = f"[strike][#585858]{start_disp}[/#585858][/strike]"
+                dim_end   = f"[strike][#585858]{end_disp}[/#585858][/strike]"
+                dur_str = str(duration_hours)
+            else:
+                dim_start = start_disp
+                dim_end   = end_disp
+                try:
+                    if start_iso and end_iso:
+                        s = datetime.fromisoformat(start_iso)
+                        e = datetime.fromisoformat(end_iso)
+                        calc = round((e - s).total_seconds() / 3600, 2)
+                        dur_str = f"[#79a8a8]{calc}[/#79a8a8]"
+                    else:
+                        dur_str = ""
+                except Exception:
+                    dur_str = ""
+
             self.logs_table.add_row(
                 str(log_entry["id"]),
                 p_name,
                 j_name,
                 log_date,
-                start_disp,
-                end_disp,
+                dim_start,
+                dim_end,
+                dur_str,
                 memo,
                 key=str(log_entry["id"]),
             )
@@ -243,7 +285,7 @@ class WtlApp(App):
 
         col_index = event.coordinate.column
 
-        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Memo
+        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo
         if col_index in (1, 2):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
@@ -260,9 +302,13 @@ class WtlApp(App):
             value = log_entry["end_time"] or ""
             self.show_edit_overlay(log_entry, 5, value, "time_only", event.coordinate)
         elif col_index == 6:
+            # Duration field
+            value = str(log_entry["duration_hours"]) if log_entry["duration_hours"] is not None else ""
+            self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
+        elif col_index == 7:
             # Memo field
             value = log_entry["memo"] or ""
-            self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
+            self.show_edit_overlay(log_entry, 7, value, "memo", event.coordinate)
 
     def show_edit_overlay(
         self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
@@ -317,7 +363,7 @@ class WtlApp(App):
             # If only time, we might need more logic, but operations layer usually handles it or we normalize here
             pass
 
-        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Memo
+        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo
         if self._editing_col_index == 3:
             # Update date of start_time
             if len(val) == 10:
@@ -331,6 +377,14 @@ class WtlApp(App):
             # End Time
             self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 6:
+            # duration_hours
+            try:
+                duration = float(val) if val else None
+            except ValueError:
+                self.notify("数値を入力してください (例: 2.5)", severity="error")
+                return
+            self._commit_log_update(self._editing_log_entry, duration_hours=duration)
+        elif self._editing_col_index == 7:
             # Memo
             self._update_memo(self._editing_log_entry, val)
 
@@ -482,6 +536,30 @@ class WtlApp(App):
         """Action handler to show the Dashboard screen."""
         from .dashboard import DashboardScreen
         self.push_screen(DashboardScreen())
+
+    def action_show_filter(self) -> None:
+        """Action handler to show the Filter modal."""
+        from .widgets import FilterModal
+        current = {
+            "project": self.filter_project,
+            "job": self.filter_job,
+            "start": self.filter_date_start,
+            "end": self.filter_date_end
+        }
+        def handle_filter(res: dict | None) -> None:
+            if res is None:
+                return
+            self.filter_project = res["project"]
+            self.filter_job = res["job"]
+            self.filter_date_start = res["start"]
+            self.filter_date_end = res["end"]
+            self.refresh_data()
+            if any(res.values()):
+                self.notify("Filters applied.")
+            else:
+                self.notify("Filters cleared.")
+
+        self.push_screen(FilterModal(current), handle_filter)
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ async def test_tui_startup_population():
         # Check table
         assert table.row_count == 1
         row = table.get_row_at(0)
-        assert len(row) == 7
+        assert len(row) == 8
         assert row[1] == "Test Project"
         assert row[2] == "Test Job"
         assert row[3] == datetime.now().strftime("%Y-%m-%d")
@@ -135,6 +135,41 @@ async def test_tui_confirm_delete_modal():
         await pilot.pause()
         
         assert len(operations.list_logs()) == 0
+
+
+@pytest.mark.asyncio
+async def test_tui_filtering():
+    """Test the FilterModal and filtering logic."""
+    operations.add_project("P1")
+    operations.add_job("J1", "P1")
+    operations.start_log("P1", "J1")
+    operations.stop_log()
+    
+    operations.add_project("P2")
+    operations.add_job("J2", "P2")
+    operations.start_log("P2", "J2")
+    operations.stop_log()
+    
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        assert table.row_count == 2
+        
+        await pilot.press("f")
+        await pilot.pause()
+        
+        from work_time_logger.widgets import FilterModal
+        assert isinstance(app.screen, FilterModal)
+        
+        await pilot.click("#f-project")
+        for char in "P1":
+            await pilot.press(char)
+        
+        await pilot.click("#btn-apply")
+        await pilot.pause()
+        
+        assert table.row_count == 1
+        assert table.get_row_at(0)[1] == "P1"
 
 
 @pytest.mark.asyncio
