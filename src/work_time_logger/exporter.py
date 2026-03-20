@@ -170,12 +170,24 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
 
         agg_time = _apply_rounding(total_time, time_precision, time_rounding)
+        
+        # Sub-group by all fields to aggregate times for identical notes
+        sub_groups = {}
+        for item in group_items:
+            # Key excludes time-based fields
+            sub_key = tuple(sorted((k, str(v)) for k, v in item.items() if k not in ("_raw_time_hours", "time_hours")))
+            if sub_key not in sub_groups:
+                sub_groups[sub_key] = item.copy()
+                sub_groups[sub_key]["_raw_time_hours"] = 0.0
+            sub_groups[sub_key]["_raw_time_hours"] += item["_raw_time_hours"]
 
         # Aggregate notes using Jinja2
         notes = []
-        for item in group_items:
+        for sub_item in sub_groups.values():
+            # Calc rounded time for this sub-item for use in template
+            sub_item["time_hours"] = _apply_rounding(sub_item["_raw_time_hours"], time_precision, time_rounding)
             if note_item_template:
-                rendered = _render(note_item_template, item)
+                rendered = _render(note_item_template, sub_item)
                 if rendered:
                     notes.append(rendered)
 
@@ -197,9 +209,10 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         return 0
 
     csv_columns = list(columns_config.keys())
-    with open(output_path, "w", newline="", encoding="utf-8") as f:
+    with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=csv_columns)
         writer.writeheader()
         writer.writerows(aggregated_results)
 
     return len(aggregated_results)
+
