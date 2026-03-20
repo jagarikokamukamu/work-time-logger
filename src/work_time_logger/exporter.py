@@ -95,6 +95,83 @@ job_code    = "{{ type }}-{{ ticket }}"
 """
 
 
+def load_profile(profile_path: str) -> dict:
+    """Load the TOML profile from the given path, creating a default one if missing.
+
+    Args:
+        profile_path (str): Path to the TOML profile file.
+
+    Returns:
+        dict: The loaded profile configuration.
+    """
+    if not os.path.exists(profile_path):
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_PROFILE_TEMPLATE)
+
+    with open(profile_path, "rb") as f:
+        return tomllib.load(f)
+
+
+def get_extract_regexes(export_config: dict) -> dict[str, re.Pattern | None]:
+    """Compile extraction regexes from the export configuration.
+
+    Args:
+        export_config (dict): The export section of the profile.
+
+    Returns:
+        dict: A mapping of variable names to compiled regex patterns.
+    """
+    extract_rules = export_config.get("extract", {})
+    compiled = {}
+    for var, pattern in extract_rules.items():
+        try:
+            compiled[var] = re.compile(pattern)
+        except re.error as e:
+            print(f"Warning: Could not compile regex for '{var}': {e}")
+            compiled[var] = None
+    return compiled
+
+
+def extract_fields(
+    job_code: str, compiled_regexes: dict[str, re.Pattern | None], defaults: dict
+) -> dict:
+    """Extract fields from a job code using compiled regexes and default values.
+
+    Args:
+        job_code (str): The external reference code of a job.
+        compiled_regexes (dict): Compiled regex patterns for extraction.
+        defaults (dict): Default values for fields.
+
+    Returns:
+        dict: The dictionary of extracted and default fields.
+    """
+    row_data = defaults.copy()
+    for var, pattern in compiled_regexes.items():
+        if pattern:
+            match = pattern.search(
+                job_code if var == "job_code" else row_data.get(var, "")
+            )
+            if match:
+                row_data.update(match.groupdict())
+    return row_data
+
+
+def render_columns(columns_config: dict, context: dict) -> dict[str, str]:
+    """Render the final CSV columns using template configurations and context.
+
+    Args:
+        columns_config (dict): The column template mapping from the profile.
+        context (dict): The dictionary of variables for rendering.
+
+    Returns:
+        dict: A mapping of column names to rendered string values.
+    """
+    final_row = {}
+    for col_name, value_template in columns_config.items():
+        final_row[col_name] = _render(value_template, context)
+    return final_row
+
+
 def export_logs(profile_path: str, output_path: str, target_date: str | None = None):
     """Export logs based on the provided TOML profile.
 
@@ -116,26 +193,11 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     Returns:
         int: The number of aggregated rows exported.
     """
-    if not os.path.exists(profile_path):
-        with open(profile_path, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_PROFILE_TEMPLATE)
-
-    with open(profile_path, "rb") as f:
-        profile = tomllib.load(f)
-
+    profile = load_profile(profile_path)
     export_config = profile.get("export", {})
 
-    extract_rules = export_config.get("extract", {})
+    compiled_regexes = get_extract_regexes(export_config)
     defaults_config = export_config.get("defaults", {})
-
-    # Compile regexes safely
-    compiled_regexes = {}
-    for var, pattern in extract_rules.items():
-        try:
-            compiled_regexes[var] = re.compile(pattern)
-        except re.error as e:
-            print(f"Warning: Could not compile regex for '{var}': {e}")
-            compiled_regexes[var] = None
 
     group_by_keys = export_config.get("group_by", [])
     note_item_template = export_config.get("format", {}).get("note_item", "")
@@ -158,17 +220,8 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     extracted_data = []
 
     for log in logs:
-        row_data = defaults_config.copy()
-
         job_code = log["job_code"] or ""
-
-        for var, pattern in compiled_regexes.items():
-            if pattern:
-                match = pattern.search(
-                    job_code if var == "job_code" else row_data.get(var, "")
-                )
-                if match:
-                    row_data.update(match.groupdict())
+        row_data = extract_fields(job_code, compiled_regexes, defaults_config)
 
         row_data["memo"] = log["memo"] or ""
         row_data["project_name"] = log["project_name"] or ""
@@ -246,9 +299,7 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         representative_item["aggregated_notes"] = aggregated_notes
 
         # Map to final columns using Jinja2
-        final_row = {}
-        for col_name, value_template in columns_config.items():
-            final_row[col_name] = _render(value_template, representative_item)
+        final_row = render_columns(columns_config, representative_item)
 
         aggregated_results.append(final_row)
 
