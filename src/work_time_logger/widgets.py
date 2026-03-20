@@ -215,23 +215,20 @@ class OverlayInput(Input):
                         dt += timedelta(seconds=delta)
                     self.value = dt.isoformat(sep=" ")
                 else:
-                    # Simple HH:mm:ss
+                    # Simple HH:mm
                     parts = val.split(":")
-                    if len(parts) != 3: return
+                    if len(parts) != 2: return
                     try:
-                        h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+                        h, m = int(parts[0]), int(parts[1])
                         if cursor_pos <= len(parts[0]):
                             h += delta
-                        elif cursor_pos <= len(parts[0]) + 3:
-                            m += delta
                         else:
-                            s += delta
+                            m += delta
                         
-                        total_secs = h * 3600 + m * 60 + s
-                        total_secs = max(0, total_secs)
-                        nh, rem = divmod(total_secs, 3600)
-                        nm, ns = divmod(rem, 60)
-                        self.value = f"{nh:02}:{nm:02}:{ns:02}"
+                        total_mins = h * 60 + m
+                        total_mins = max(0, total_mins)
+                        nh, nm = divmod(total_mins, 60)
+                        self.value = f"{nh:02}:{nm:02}"
                     except ValueError:
                         pass
             

@@ -174,7 +174,7 @@ class WtlApp(App):
                 base = datetime.fromisoformat(log_date + "T00:00:00")
                 diff = dt - base
                 secs = int(diff.total_seconds())
-                return f"{secs//3600:02}:{(secs%3600)//60:02}:{secs%60:02}"
+                return f"{secs//3600:02}:{(secs%3600)//60:02}"
 
             start_disp = format_rel(start_iso)
             end_disp = format_rel(end_iso)
@@ -311,7 +311,7 @@ class WtlApp(App):
             # Start Time field
             raw = log_entry["start_time"]
             if raw and len(raw) >= 19:
-                value = raw[11:19] # HH:mm:ss
+                value = raw[11:16] # HH:mm
             else:
                 value = raw or ""
             self.show_edit_overlay(log_entry, 4, value, "time_only", event.coordinate)
@@ -319,7 +319,7 @@ class WtlApp(App):
             # End Time field
             raw = log_entry["end_time"]
             if raw and len(raw) >= 19:
-                value = raw[11:19] # HH:mm:ss
+                value = raw[11:16] # HH:mm
             else:
                 value = raw or ""
             self.show_edit_overlay(log_entry, 5, value, "time_only", event.coordinate)
@@ -394,15 +394,15 @@ class WtlApp(App):
                 self._update_start_time(self._editing_log_entry, new_start)
         elif self._editing_col_index == 4:
             # Start Time
-            if len(val) == 8 and ":" in val: # HH:mm:ss
+            if len(val) == 5 and ":" in val: # HH:mm
                 current_date = self._editing_log_entry["start_time"][:10]
-                val = f"{current_date}T{val}"
+                val = f"{current_date}T{val}:00"
             self._update_start_time(self._editing_log_entry, val)
         elif self._editing_col_index == 5:
             # End Time
-            if len(val) == 8 and ":" in val: # HH:mm:ss
+            if len(val) == 5 and ":" in val: # HH:mm
                 current_date = (self._editing_log_entry["end_time"] or self._editing_log_entry["start_time"])[:10]
-                val = f"{current_date}T{val}"
+                val = f"{current_date}T{val}:00"
             self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 6:
             # duration_hours
