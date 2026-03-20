@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
@@ -154,7 +154,7 @@ class OverlayInput(Input):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.edit_mode = "memo"  # "memo" or "date"
+        self.edit_mode = "memo"  # "memo", "date_only", "time_only", "date" (legacy)
 
     def action_cancel(self) -> None:
         self.can_focus = False
@@ -168,51 +168,75 @@ class OverlayInput(Input):
         self._adjust_value(-1)
 
     def _adjust_value(self, delta: int) -> None:
-        if self.edit_mode != "date":
+        if self.edit_mode == "memo":
             return
 
         cursor_pos = self.cursor_position
         val = self.value
 
         try:
-            is_full = True
-            try:
-                dt = datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
+            if self.edit_mode == "date_only":
+                # YYYY-MM-DD
                 dt = datetime.strptime(val, "%Y-%m-%d")
-                is_full = False
-
-            if cursor_pos <= 4:
-                dt = dt.replace(year=dt.year + delta)
-            elif cursor_pos <= 7:
-                month = dt.month + delta
-                year = dt.year
-                if month > 12:
-                    month -= 12
-                    year += 1
-                elif month < 1:
-                    month += 12
-                    year -= 1
-                if month < 12:
-                    next_month = datetime(year, month % 12 + 1, 1)
-                    last_day_of_month = (next_month - timedelta(days=1)).day
+                if cursor_pos <= 4:
+                    dt = dt.replace(year=max(1, dt.year + delta))
+                elif cursor_pos <= 7:
+                    # Move month
+                    month = dt.month + delta
+                    year = dt.year
+                    while month > 12:
+                        month -= 12
+                        year += 1
+                    while month < 1:
+                        month += 12
+                        year -= 1
+                    # Ensure day is valid for new month
+                    import calendar
+                    last_day = calendar.monthrange(year, month)[1]
+                    dt = dt.replace(year=year, month=month, day=min(dt.day, last_day))
                 else:
-                    last_day_of_month = 31
-                day = min(dt.day, last_day_of_month)
-                dt = dt.replace(year=year, month=month, day=day)
-            elif cursor_pos <= 10:
-                dt += timedelta(days=delta)
-            elif cursor_pos <= 13 and is_full:
-                dt += timedelta(hours=delta)
-            elif cursor_pos <= 16 and is_full:
-                dt += timedelta(minutes=delta)
-            elif is_full:
+                    dt += timedelta(days=delta)
+                self.value = dt.strftime("%Y-%m-%d")
+            
+            elif self.edit_mode == "time_only":
+                # HH:mm:ss or YYYY-MM-DD HH:mm:ss
+                if "T" in val: val = val.replace("T", " ")
+                if " " in val:
+                    # Parse full ISO
+                    dt = datetime.fromisoformat(val)
+                    if cursor_pos <= 10: # Date part
+                        dt += timedelta(days=delta)
+                    elif cursor_pos <= 13: # HH
+                        dt += timedelta(hours=delta)
+                    elif cursor_pos <= 16: # mm
+                        dt += timedelta(minutes=delta)
+                    else: # ss
+                        dt += timedelta(seconds=delta)
+                    self.value = dt.isoformat(sep=" ")
+                else:
+                    # Simple HH:mm:ss
+                    parts = val.split(":")
+                    if len(parts) != 3: return
+                    h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+                    if cursor_pos <= len(parts[0]):
+                        h += delta
+                    elif cursor_pos <= len(parts[0]) + 3:
+                        m += delta
+                    else:
+                        s += delta
+                    
+                    # Normalize but keep negative time or over 24h if needed (though divmod is safer)
+                    total_secs = h * 3600 + m * 60 + s
+                    total_secs = max(0, total_secs)
+                    nh, rem = divmod(total_secs, 3600)
+                    nm, ns = divmod(rem, 60)
+                    self.value = f"{nh:02}:{nm:02}:{ns:02}"
+            
+            elif self.edit_mode == "date": # Legacy fallback
+                dt = datetime.fromisoformat(val)
                 dt += timedelta(seconds=delta)
+                self.value = dt.isoformat(sep=" ")
 
-            self.value = (
-                dt.strftime("%Y-%m-%d %H:%M:%S") if is_full else dt.strftime("%Y-%m-%d")
-            )
-            self.cursor_position = cursor_pos
             self.cursor_position = cursor_pos
         except Exception:
             pass
@@ -255,6 +279,8 @@ class HelpModal(ModalScreen):
                 "  x       : Stop tracking current job\n"
                 "  e       : Export logs to CSV\n"
                 "  v       : View Daily Summary (aggregates hours)\n"
+                "  d       : View Dashboard (Weekly/Monthly charts)\n"
+                "  f       : Filter logs by Project, Job, or Date Range\n"
                 "\nSidebar Focus (Projects & Jobs):\n"
                 "  enter   : Start selected job\n"
                 "  a       : Add log pre-assigned to selected job\n"
@@ -333,3 +359,80 @@ class ExportLogsModal(ModalScreen[tuple[str, str, str]]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class DailySummaryModal(ModalScreen):
+    """A modal screen that displays an aggregated summary of work per day."""
+
+    CSS = """
+    DailySummaryModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    #summary-container {
+        width: 90%;
+        height: 80%;
+        padding: 1 2;
+        background: $surface;
+        border: thick $primary;
+    }
+    .summary-title {
+        content-align: center middle;
+        width: 100%;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    """
+
+    BINDINGS = [
+        ("escape", "dismiss", "Close"),
+        ("q", "dismiss", "Close"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Container(id="summary-container"):
+            yield Static("Daily Work Summary", classes="summary-title")
+            yield DataTable(id="summary-table")
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        table.add_columns("Date", "Project", "Job", "Hours", "Notes")
+        
+        logs = operations.list_logs()
+        # Sort by date, project, job for grouping
+        def sort_key(log):
+            return (log["start_time"][:10], log["project_name"] or "", log["job_name"] or "")
+        
+        logs_sorted = sorted(logs, key=sort_key, reverse=True)
+        
+        from itertools import groupby
+        for (day, proj, job), group in groupby(logs_sorted, key=sort_key):
+            group_list = list(group)
+            total_hours = 0.0
+            notes = []
+            
+            for log in group_list:
+                if log["duration_hours"] is not None:
+                    h = log["duration_hours"]
+                elif log["start_time"] and log["end_time"]:
+                    s = datetime.fromisoformat(log["start_time"])
+                    e = datetime.fromisoformat(log["end_time"])
+                    h = (e - s).total_seconds() / 3600.0
+                else:
+                    h = 0.0
+                total_hours += h
+                if log["memo"]:
+                    notes.append(log["memo"])
+            
+            unique_notes = []
+            for n in notes:
+                if n not in unique_notes: unique_notes.append(n)
+            
+            table.add_row(
+                day,
+                proj or "[未割り当て]",
+                job or "[未割り当て]",
+                f"{total_hours:.2f}",
+                " / ".join(unique_notes)
+            )
+        table.focus()
