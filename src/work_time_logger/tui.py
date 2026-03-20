@@ -66,18 +66,19 @@ class WtlApp(App):
     """
 
     BINDINGS = [
-        Binding("h", "show_help", "Help", show=True),
-        Binding("f1", "show_help", "Help", show=False),
         Binding("tab", "switch_focus", "Focus", show=True),
+        Binding("s", "start_job", "Start", show=True),
         Binding("x", "stop_job", "Stop", show=True),
+        Binding("f", "show_filter", "Filter", show=True),
+        Binding("d", "show_dashboard", "Dashboard", show=True),
+        Binding("v", "show_summary", "Daily Summary", show=True),
+        Binding("e", "export_logs", "Export Logs", show=True),
+        Binding("h", "show_help", "Help", show=True),
+        # 隠しコマンド
         Binding("q", "quit", "Quit", show=False),
-        Binding("s", "start_job", "Search Job", show=False),
+        Binding("f1", "show_help", "Help", show=False),
         Binding("S", "start_unassigned", "Start Unassigned Timer", show=False),
         Binding("A", "add_empty_log", "Add Empty Log", show=False),
-        Binding("e", "export_logs", "Export Logs", show=True),
-        Binding("v", "show_summary", "Daily Summary", show=True),
-        Binding("d", "show_dashboard", "Dashboard", show=True),
-        Binding("f", "show_filter", "Filter", show=True),
     ]
 
     def __init__(self, **kwargs):
