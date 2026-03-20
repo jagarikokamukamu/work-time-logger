@@ -17,8 +17,14 @@ from textual.widgets import (
     Tree,
 )
 
-from . import operations
-from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayInput
+from . import db, operations
+from .widgets import (
+    ConfirmDeleteModal,
+    HelpModal,
+    JobCodeModal,
+    JobSelectionModal,
+    OverlayInput,
+)
 
 
 class LogColumn(IntEnum):
@@ -47,7 +53,20 @@ class ProjectsTree(Tree):
     BINDINGS = [
         Binding("enter", "select_cursor", "Start Job", show=True),
         Binding("a", "add_job_log", "Add Log", show=True),
+        Binding("c", "show_job_code", "Show Job Code", show=True),
     ]
+
+    def action_show_job_code(self) -> None:
+        """Shows the expansion of the job code for the selected job.
+
+        This action is triggered by the 'c' key binding. It opens a
+        `JobCodeModal` with the rendered columns.
+        """
+        node = self.cursor_node
+        if node and not node.allow_expand:
+            job_name = str(node.label)
+            project_name = str(node.parent.label)
+            self.app.push_screen(JobCodeModal(project_name, job_name))
 
     def action_add_job_log(self) -> None:
         """Adds a new log to the selected job without starting a timer.
@@ -142,7 +161,7 @@ class WtlApp(App):
         # Load duration step from profile
         self.duration_step = 0.1
         try:
-            profile_path = operations.db.DB_DIR / "profile.toml"
+            profile_path = db.DB_DIR / "profile.toml"
             if profile_path.exists():
                 import tomllib
 

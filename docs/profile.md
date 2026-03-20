@@ -75,8 +75,9 @@ time_rounding  = "round"
 
 ```toml
 [export.format]
-note_item = "{% if memo %}{{ ticket }}:{{ time_hours }}({ memo }){% endif %}{{ ticket }}:{{ time_hours }}"
-note_separator = "/"
+# 例: "001:1.5 (DB修正)" または "001:1.5"
+note_item = "{{ ticket }}:{{ time_hours }}{% if memo %} ({{ memo }}){% endif %}"
+note_separator = " / "
 ```
 
 ---
@@ -92,6 +93,9 @@ note_separator = "/"
 "作業時間"  = "{{ aggregated_time }}"
 "備考詳細"  = "{{ aggregated_notes }}"
 ```
+
+> [!NOTE]
+> `export.columns` では、`aggregated_time` と `aggregated_notes` に加え、グループ化の基準となった変数（`type` や `ticket` など）も使用できます。これらはグループ内の最初のログエントリから取得されます。
 
 ---
 
@@ -114,6 +118,7 @@ note_separator = "/"
 | :----------------- | :----------------------------------------------------------- |
 | `aggregated_time`  | グループ内の全作業時間の合計                                 |
 | `aggregated_notes` | グループ内の `note_item` を `note_separator` で連結した結果  |
+| *(独自変数)*       | `[export.extract]` で取り出した変数（最初の1件の値）         |
 
 ---
 

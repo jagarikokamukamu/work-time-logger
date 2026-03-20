@@ -224,16 +224,67 @@ def list_jobs(
         help="Filter jobs by project name.",
         autocompletion=complete_project_name,
     ),
+    codes: bool = typer.Option(
+        False,
+        "--codes",
+        "-c",
+        help="Show job codes expanded by export columns format.",
+    ),
+    profile: str = typer.Option(
+        str(db.DB_DIR / "profile.toml"),
+        "--profile",
+        "-r",
+        help="Path to the TOML profile for formatting.",
+    ),
 ):
     """List jobs.
 
     Displays a table of jobs, optionally filtered by a specific project.
+    With --codes, shows how job codes are expanded into export columns.
     """
+    from . import exporter
+
     jobs = operations.list_jobs(project_name)
-    table = Table("ID", "Job Name", "Project")
-    for j in jobs:
-        table.add_row(str(j["id"]), j["name"], j["project_name"])
-    console.print(table)
+
+    if codes:
+        try:
+            profile_cfg = exporter.load_profile(profile)
+            export_config = profile_cfg.get("export", {})
+            compiled_regexes = exporter.get_extract_regexes(export_config)
+            defaults = export_config.get("defaults", {})
+            columns_config = export_config.get("columns", {})
+
+            # Prepare table with export columns
+            headers = ["ID", "Job Name"] + list(columns_config.keys())
+            table = Table(*headers)
+
+            for j in jobs:
+                job_code = j["code"] or ""
+                # Extract fields
+                ctx = exporter.extract_fields(job_code, compiled_regexes, defaults)
+                # Extra context for rendering
+                ctx.update(
+                    {
+                        "project_name": j["project_name"],
+                        "job_name": j["name"],
+                        "aggregated_time": "",
+                        "aggregated_notes": "",
+                    }
+                )
+                # Render columns
+                rendered = exporter.render_columns(columns_config, ctx)
+                row = [str(j["id"]), j["name"]] + [
+                    rendered.get(h, "") for h in columns_config.keys()
+                ]
+                table.add_row(*row)
+            console.print(table)
+        except Exception as e:
+            console.print(f"[red]Error expanding job codes: {e}[/red]")
+    else:
+        table = Table("ID", "Job Name", "Project")
+        for j in jobs:
+            table.add_row(str(j["id"]), j["name"], j["project_name"])
+        console.print(table)
 
 
 @job_app.command("delete")

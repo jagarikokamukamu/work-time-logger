@@ -579,3 +579,97 @@ class FilterModal(ModalScreen):
                 "end": self.query_one("#f-end", Input).value.strip() or None,
             }
             self.dismiss(res)
+
+
+class JobCodeModal(ModalScreen):
+    """A modal screen that displays the job code expansion for a specific job."""
+
+    CSS = """
+    JobCodeModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    #job-code-container {
+        width: 80;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: thick $primary;
+    }
+    .job-code-title {
+        content-align: center middle;
+        width: 100%;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    #job-code-table {
+        height: auto;
+        max-height: 20;
+    }
+    #btn-close {
+        margin-top: 1;
+        width: 100%;
+    }
+    """
+
+    BINDINGS = [
+        ("escape", "dismiss", "Close"),
+        ("q", "dismiss", "Close"),
+    ]
+
+    def __init__(self, project_name: str, job_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.project_name = project_name
+        self.job_name = job_name
+
+    def compose(self) -> ComposeResult:
+        """Compose the job code expansion screen widgets."""
+        with Container(id="job-code-container"):
+            yield Static(
+                f"Job Code Expansion: {self.job_name}", classes="job-code-title"
+            )
+            yield DataTable(id="job-code-table")
+            yield Button("Close", id="btn-close", variant="primary")
+
+    def on_mount(self) -> None:
+        """Mount handler to populate the job code table."""
+        from . import exporter
+
+        table = self.query_one(DataTable)
+        table.add_columns("Column", "Value")
+
+        try:
+            profile_path = db.DB_DIR / "profile.toml"
+            profile_cfg = exporter.load_profile(str(profile_path))
+            export_config = profile_cfg.get("export", {})
+            compiled_regexes = exporter.get_extract_regexes(export_config)
+            defaults = export_config.get("defaults", {})
+            columns_config = export_config.get("columns", {})
+
+            # Find the job to get its code
+            jobs = operations.list_jobs(self.project_name)
+            job = next((j for j in jobs if j["name"] == self.job_name), None)
+            if job:
+                job_code = job["code"] or ""
+                ctx = exporter.extract_fields(job_code, compiled_regexes, defaults)
+                ctx.update(
+                    {
+                        "project_name": self.project_name,
+                        "job_name": self.job_name,
+                        "aggregated_time": "",
+                        "aggregated_notes": "",
+                    }
+                )
+                rendered = exporter.render_columns(columns_config, ctx)
+                for col_name, value in rendered.items():
+                    table.add_row(col_name, value)
+            else:
+                table.add_row("Error", "Job not found")
+        except Exception as e:
+            table.add_row("Error", str(e))
+        table.focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
+        if event.button.id == "btn-close":
+            self.dismiss()
