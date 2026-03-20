@@ -46,7 +46,12 @@ select = [
     "C4", # flake8-comprehensions
     "UP", # pyupgrade
     "D100", # Missing docstring in public module (files)
+    "D101", # Missing docstring in public class
+    "D102", # Missing docstring in public method
     "D103", # Missing docstring in public function
+    "D201", "D202", # missing-blank-line-before-summary
+    "D205", # missing-blank-line-after-summary
+    "D417", # undocumented-param
 ]
 ignore = []
 
@@ -56,3 +61,6 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
