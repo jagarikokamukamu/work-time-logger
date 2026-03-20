@@ -76,7 +76,10 @@ async def test_tui_edit_log_cell():
     """Test editing an existing log's time via in-place overlay input."""
     operations.add_project("NewProj")
     operations.add_job("NewJob", "NewProj")
-    operations.create_empty_log()
+    lid = operations.create_empty_log()
+    # Ensure end_time is late enough to avoid validation errors
+    today = datetime.now().strftime("%Y-%m-%d")
+    operations.update_log(lid, end_time=f"{today}T23:59:59")
 
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:
@@ -122,6 +125,7 @@ async def test_tui_confirm_delete_modal():
         await pilot.pause()
 
         from work_time_logger.widgets import ConfirmDeleteModal
+
         assert isinstance(app.screen, ConfirmDeleteModal)
 
         # Cancel with 'n'
@@ -135,7 +139,7 @@ async def test_tui_confirm_delete_modal():
         await pilot.pause()
         await pilot.press("y")
         await pilot.pause()
-        
+
         assert len(operations.list_logs()) == 0
 
 
@@ -146,30 +150,31 @@ async def test_tui_filtering():
     operations.add_job("J1", "P1")
     operations.start_log("P1", "J1")
     operations.stop_log()
-    
+
     operations.add_project("P2")
     operations.add_job("J2", "P2")
     operations.start_log("P2", "J2")
     operations.stop_log()
-    
+
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:
         table = app.query_one(DataTable)
         assert table.row_count == 2
-        
+
         await pilot.press("f")
         await pilot.pause()
-        
+
         from work_time_logger.widgets import FilterModal
+
         assert isinstance(app.screen, FilterModal)
-        
+
         await pilot.click("#f-project")
         for char in "P1":
             await pilot.press(char)
-        
+
         await pilot.click("#btn-apply")
         await pilot.pause()
-        
+
         assert table.row_count == 1
         assert table.get_row_at(0)[1] == "P1"
 
@@ -181,16 +186,17 @@ async def test_tui_dashboard_screen():
     async with app.run_test(size=(120, 60)) as pilot:
         await pilot.press("d")
         await pilot.pause()
-        
+
         from work_time_logger.dashboard import DashboardScreen
+
         assert isinstance(app.screen, DashboardScreen)
-        
+
         await pilot.press("m")
         assert app.screen.period == "month"
-        
+
         await pilot.press("w")
         assert app.screen.period == "week"
-        
+
         await pilot.press("escape")
         await pilot.pause()
         assert not isinstance(app.screen, DashboardScreen)
@@ -204,7 +210,7 @@ async def test_tui_arrow_key_adjustment():
     async with app.run_test(size=(120, 60)) as pilot:
         table = app.query_one(DataTable)
         app.set_focus(table)
-        
+
         # 1. Test Date (col 3)
         table.move_cursor(row=0, column=3)
         await pilot.press("enter")
@@ -215,7 +221,7 @@ async def test_tui_arrow_key_adjustment():
         await pilot.press("up")
         assert overlay.value != old_val
         await pilot.press("escape")
-        
+
         # 2. Test Start Time (col 4)
         table.move_cursor(row=0, column=4)
         await pilot.press("enter")
@@ -223,9 +229,9 @@ async def test_tui_arrow_key_adjustment():
         assert overlay.edit_mode == "time_only"
         # Since it's formatted as HH:mm:ss, but the original empty log might have "" or full ISO
         # Empty log has start_time set to current time in operations.create_empty_log()
-        assert len(overlay.value) == 5 # HH:mm
+        assert len(overlay.value) == 5  # HH:mm
         await pilot.press("escape")
-        
+
         # 3. Test Duration (col 6)
         table.move_cursor(row=0, column=6)
         await pilot.press("enter")
