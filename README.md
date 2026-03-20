@@ -1,50 +1,50 @@
 # Work Time Logger (wtl)
 
-Work Time Logger は、ターミナルから操作できるCLIおよびTUIを備えた作業時間記録ツールです。
+Work Time Logger は、TUIベースの作業時間記録ツールです。
+日々の業務時間を記録し、柔軟な形式でレポートを出力できます。
 
-## 主な機能
+## 🌟 主な機能
 
-- **CLI (`wtl`)**:
-  - プロジェクト・ジョブの作成、一覧表示、削除
-  - CSVからのジョブ一括インポート機能
-  - 作業の開始 (`wtl start`) と終了 (`wtl stop`)
-  - 未割り当てでの作業開始 (`wtl start --unassigned`)
-  - TOMLプロファイルを用いた作業ログのCSVエクスポート機能
-  - シェルの自動補完対応
-- **TUI (`wtlui`)**:
-  - キーボード操作に最適化されたターミナルUI
-  - `s` キーによるジョブのあいまい（ファジー）検索・即時開始
-  - テーブル上でのログの直接編集（インプレース・エディット）と上下矢印キーによる日時調整
-  - いつでも作業履歴と今の状態を確認できるダッシュボード
+### 📦 ターミナルUI (`wtlui`)
 
-## インストール手順
+キーボードだけで操作が完結するダッシュボードです。
 
-プロジェクトは [uv](https://github.com/astral-sh/uv) を利用して環境構築を行います。
+- **ファジー検索 (`s` キー)**: ジョブ名やコードから目的のタスクを見つけて計測を開始できます。
+- **インプレース編集**: 記録済みのログは、表の上で修正可能。開始・終了時刻は `↑` `↓` キーで微調整できます。
+- **ダッシュボード (`d` キー)**: 今日の作業状況や累計時間を表示。
+- **フィルタリング (`f` キー)**: プロジェクトや日付でログを絞り込み。
 
-```bash
-# リポジトリのクローン後、依存関係を同期
-uv sync
-```
+### ⌨️ CLI (`wtl`)
 
-## クイックスタート
+自動化やスクリプト操作に適したコマンド群です。
+
+- **一括インポート**: CSVファイルからジョブデータを登録可能。
+- **エクスポート**: TOMLプロファイルとJinja2テンプレートを使用してCSVレポートを出力。
+- **シェル補完**: Typerによる自動補完で、プロジェクトやジョブの入力をサポート。
+- **未割り当てタイマー**: タイマーを走らせておき、後からジョブを割り当てることも可能です。
+
+各コマンドの詳細は [CLI Reference](docs/cli-reference.md) を参照してください。
+
+## 🚀 クイックスタート
+
+まずはプロジェクトを作成し、記録を始めてみましょう。
 
 ```bash
 # 1. 新しいプロジェクトを追加
-uv run wtl project add -n "Example Project"
+wtl project add -n "Example Project"
 
 # 2. TUIを起動して作業をトラッキング
-uv run wtlui
+wtlui
 ```
 
-> TUI内でヘルプが必要な場合は `h`（または `F1`）キーを押してキーバインド一覧を開いてください。
+> TUI内で操作に迷ったら `h`（または `F1`）キーを押してヘルプを表示してください。
 
-### Customization (`~/.wtl/profile.toml`)
+## 🛠️ カスタマイズ (`profile.toml`)
 
-- **Flexible Parsing**: Automatically generate tags and identifiers (`job_code`) from your CSV during import using `[import.mapping]`.
-- **Advanced Export Processing**: Define regular expressions in `[export.extract]` to parse metadata from your `job_code`, group statistics in `[export]`, and format customized CSV columns in `[export.columns]`.
+`~/.wtl/profile.toml` を編集することで、挙動をカスタマイズできます。
 
-## 開発とテスト
+- **インポート設定**: `[import.mapping]` を使い、CSVの複数カラムを組み合わせてジョブコードを生成。
+- **集計**: `[export.extract]` で正規表現を使い、ジョブコードから情報を抽出して集計。
+- **レポート形式**: Jinja2 テンプレートを使用し、各種CSVフォーマットに合わせたエクスポートが可能です。
 
-- `pytest`: テストスイートの実行（`uv run pytest`）
-- `ruff`: リントとコードフォーマット
-- `bandit`, `pip-audit`: セキュリティおよび依存関係スキャン（開発用）
+詳細は [docs/profile.md](docs/profile.md) を参照してください。
