@@ -217,21 +217,33 @@ class OverlayInput(Input):
                     # Simple HH:mm:ss
                     parts = val.split(":")
                     if len(parts) != 3: return
-                    h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
-                    if cursor_pos <= len(parts[0]):
-                        h += delta
-                    elif cursor_pos <= len(parts[0]) + 3:
-                        m += delta
-                    else:
-                        s += delta
-                    
-                    # Normalize but keep negative time or over 24h if needed (though divmod is safer)
-                    total_secs = h * 3600 + m * 60 + s
-                    total_secs = max(0, total_secs)
-                    nh, rem = divmod(total_secs, 3600)
-                    nm, ns = divmod(rem, 60)
-                    self.value = f"{nh:02}:{nm:02}:{ns:02}"
+                    try:
+                        h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+                        if cursor_pos <= len(parts[0]):
+                            h += delta
+                        elif cursor_pos <= len(parts[0]) + 3:
+                            m += delta
+                        else:
+                            s += delta
+                        
+                        total_secs = h * 3600 + m * 60 + s
+                        total_secs = max(0, total_secs)
+                        nh, rem = divmod(total_secs, 3600)
+                        nm, ns = divmod(rem, 60)
+                        self.value = f"{nh:02}:{nm:02}:{ns:02}"
+                    except ValueError:
+                        pass
             
+            elif self.edit_mode == "duration":
+                # Float hours, increment by 0.25
+                try:
+                    curr_val = float(val) if val.strip() else 0.0
+                    new_val = max(0.0, curr_val + (delta * 0.25))
+                    # Round to 2 decimal places to avoid float precision issues
+                    self.value = str(round(new_val, 2))
+                except ValueError:
+                    pass
+
             elif self.edit_mode == "date": # Legacy fallback
                 dt = datetime.fromisoformat(val)
                 dt += timedelta(seconds=delta)

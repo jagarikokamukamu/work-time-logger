@@ -92,8 +92,8 @@ async def test_tui_edit_log_cell():
         assert overlay.styles.display == "block"
         assert app.focused == overlay
 
-        # Set value simulation
-        overlay.value = "2026-12-31 12:00:00"
+        # Set value simulation (now HH:mm:ss)
+        overlay.value = "12:34:56"
 
         await pilot.press("enter")
         await pilot.pause(0.1)
@@ -102,7 +102,9 @@ async def test_tui_edit_log_cell():
         assert app.focused == table
 
         logs = operations.list_logs()
-        assert logs[0]["start_time"] == "2026-12-31T12:00:00"
+        # Today's date + T + 12:34:56
+        today = datetime.now().strftime("%Y-%m-%d")
+        assert logs[0]["start_time"] == f"{today}T12:34:56"
 
 
 @pytest.mark.asyncio
@@ -196,7 +198,7 @@ async def test_tui_dashboard_screen():
 
 @pytest.mark.asyncio
 async def test_tui_arrow_key_adjustment():
-    """Test arrow key value adjustment in OverlayInput for Date and Time."""
+    """Test arrow key value adjustment in OverlayInput for Date, Time, and Duration."""
     operations.create_empty_log()
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:
@@ -219,4 +221,19 @@ async def test_tui_arrow_key_adjustment():
         await pilot.press("enter")
         await pilot.pause(0.1)
         assert overlay.edit_mode == "time_only"
+        # Since it's formatted as HH:mm:ss, but the original empty log might have "" or full ISO
+        # Empty log has start_time set to current time in operations.create_empty_log()
+        assert len(overlay.value) == 8 # HH:mm:ss
+        await pilot.press("escape")
+        
+        # 3. Test Duration (col 6)
+        table.move_cursor(row=0, column=6)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+        assert overlay.edit_mode == "duration"
+        overlay.value = "1.0"
+        await pilot.press("up")
+        assert overlay.value == "1.25"
+        await pilot.press("down")
+        assert overlay.value == "1.0"
         await pilot.press("escape")
