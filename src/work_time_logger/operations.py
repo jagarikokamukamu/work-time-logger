@@ -265,39 +265,73 @@ def create_empty_log() -> int:
         return cursor.lastrowid
 
 
+# Sentinel for optional arguments in update_log
+class _MissingType:
+    def __repr__(self):
+        return "MISSING"
+
+MISSING = _MissingType()
+
+
 def update_log(
     log_id: int,
-    project_name: str | None,
-    job_name: str | None,
-    start_time: str,
-    end_time: str | None,
-    memo: str,
-    duration_hours: float | None = None,
+    project_name: str | None = MISSING,
+    job_name: str | None = MISSING,
+    start_time: str | None = MISSING,
+    end_time: str | None = MISSING,
+    memo: str | None = MISSING,
+    duration_hours: float | None = MISSING,
 ) -> None:
-    """Update an existing log entry's details."""
+    """Update an existing log entry's details. Omitted fields remain unchanged."""
     with get_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT * FROM logs WHERE id = ?", (log_id,))
+        existing = cursor.fetchone()
+        if not existing:
+            raise ValueError(f"Log ID {log_id} not found.")
 
-        p_id = None
-        j_id = None
+        # Resolve IDs for project/job names
+        p_id = existing["project_id"]
+        j_id = existing["job_id"]
+        
+        # If both project_name and job_name are explicitly provided, resolve IDs
+        # If only one is provided, we might need more complex logic, but usually they come together
+        if project_name is not MISSING and job_name is not MISSING:
+             if project_name is None or job_name is None:
+                 p_id = None
+                 j_id = None
+             else:
+                 # Logic to find p_id and j_id from names
+                 cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+                 p_res = cursor.fetchone()
+                 if p_res:
+                     p_id = p_res["id"]
+                     cursor.execute("SELECT id FROM jobs WHERE name = ? AND project_id = ?", (job_name, p_id))
+                     j_res = cursor.fetchone()
+                     if j_res:
+                         j_id = j_res["id"]
+                     else:
+                         raise ValueError(f"Job '{job_name}' not found under '{project_name}'")
+                 else:
+                     raise ValueError(f"Project '{project_name}' not found")
 
-        if project_name and job_name:
-            cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
-            p_res = cursor.fetchone()
-            if not p_res:
-                raise ValueError(f"Project '{project_name}' not found.")
-            p_id = p_res["id"]
+        # Merge values
+        final_start = start_time if start_time is not MISSING else existing["start_time"]
+        final_end = end_time if end_time is not MISSING else existing["end_time"]
+        final_memo = memo if memo is not MISSING else existing["memo"]
+        final_duration = duration_hours if duration_hours is not MISSING else existing["duration_hours"]
 
-            cursor.execute(
-                "SELECT id FROM jobs WHERE name = ? AND project_id = ?",
-                (job_name, p_id),
-            )
-            j_res = cursor.fetchone()
-            if not j_res:
-                raise ValueError(
-                    f"Job '{job_name}' not found in project '{project_name}'."
-                )
-            j_id = j_res["id"]
+        # Validation
+        try:
+            if final_start is None:
+                raise ValueError("Start time cannot be None.")
+            s_dt = datetime.fromisoformat(final_start)
+            if final_end:
+                e_dt = datetime.fromisoformat(final_end)
+                if e_dt < s_dt:
+                    raise ValueError("End time cannot be before start time.")
+        except ValueError as e:
+            raise ValueError(f"Invalid date/time format or value: {e}")
 
         cursor.execute(
             """
@@ -305,10 +339,8 @@ def update_log(
             SET project_id = ?, job_id = ?, start_time = ?, end_time = ?, memo = ?, duration_hours = ?
             WHERE id = ?
             """,
-            (p_id, j_id, start_time, end_time, memo, duration_hours, log_id),
+            (p_id, j_id, final_start, final_end, final_memo, final_duration, log_id),
         )
-        if cursor.rowcount == 0:
-            raise ValueError(f"Log ID {log_id} not found.")
         conn.commit()
 
 

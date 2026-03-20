@@ -380,10 +380,48 @@ class WtlApp(App):
                 self.notify("Format must be YYYY-MM-DD", severity="error")
                 return
         elif inp.edit_mode == "time_only":
-            # HH:mm:ss or full ISO
-            if " " in val: val = val.replace(" ", "T")
-            # If only time, we might need more logic, but operations layer usually handles it or we normalize here
-            pass
+            # HH:mm or full ISO
+            try:
+                if " " in val: val = val.replace(" ", "T")
+                if len(val) == 5 and ":" in val: # HH:mm
+                    # Check if valid time
+                    try:
+                        h, m = map(int, val.split(":"))
+                        if not (0 <= h < 24 and 0 <= m < 60):
+                            raise ValueError("Invalid time values.")
+                    except ValueError:
+                        raise ValueError("Format must be HH:mm (e.g. 09:30)")
+                else:
+                    # Try full iso parse
+                    datetime.fromisoformat(val)
+            except ValueError as e:
+                self.notify(f"Invalid time: {e}", severity="error")
+                return
+
+            # Cross-validation: start <= end
+            current_log = self._editing_log_entry
+            new_val = val
+            if len(val) == 5:
+                # Need date to compare
+                dt_part = (current_log["end_time"] or current_log["start_time"])[:10]
+                new_val = f"{dt_part}T{val}:00"
+            
+            try:
+                if self._editing_col_index == 4: # Start Time
+                    st = datetime.fromisoformat(new_val)
+                    if current_log["end_time"]:
+                        et = datetime.fromisoformat(current_log["end_time"])
+                        if et < st:
+                            self.notify("Start time cannot be after end time.", severity="error")
+                            return
+                elif self._editing_col_index == 5: # End Time
+                    et = datetime.fromisoformat(new_val)
+                    st = datetime.fromisoformat(current_log["start_time"])
+                    if et < st:
+                        self.notify("End time cannot be before start time.", severity="error")
+                        return
+            except Exception:
+                pass
 
         # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo
         if self._editing_col_index == 3:
