@@ -1,4 +1,8 @@
-"""Database configuration and initialization routines."""
+"""Database configuration and initialization routines for Work Time Logger.
+
+This module handles the SQLite database setup, migrations, and provides
+a thread-safe connection manager.
+"""
 
 import sqlite3
 from contextlib import contextmanager
@@ -9,7 +13,12 @@ DB_PATH = DB_DIR / "db.sqlite3"
 
 
 def init_db():
-    """Initialize the SQLite database and create necessary tables."""
+    """Initialize the SQLite database and create necessary tables.
+
+    This function ensures the database directory exists and creates the
+    `projects`, `jobs`, and `logs` tables if they are missing. It also
+    handles basic schema migrations.
+    """
     if not DB_DIR.exists():
         DB_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -17,15 +26,18 @@ def init_db():
         cursor = conn.cursor()
 
         # Projects Table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL
             )
-        """)
+        """
+        )
 
         # Jobs Table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_id INTEGER NOT NULL,
@@ -35,7 +47,8 @@ def init_db():
                 UNIQUE(project_id, name),
                 FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
             )
-        """)
+        """
+        )
 
         # Migration: Add code column if it doesn't exist
         try:
@@ -44,7 +57,8 @@ def init_db():
             cursor.execute("ALTER TABLE jobs ADD COLUMN code TEXT")
 
         # Logs Table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_id INTEGER,
@@ -56,7 +70,8 @@ def init_db():
                 FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
                 FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE
             )
-        """)
+        """
+        )
 
         # Migration: Add duration_hours column if it doesn't exist
         try:
@@ -69,7 +84,15 @@ def init_db():
 
 @contextmanager
 def get_connection():
-    """Get a connection to the SQLite database."""
+    """Get a connection to the SQLite database.
+
+    This function is a context manager that provides a database connection
+    with `sqlite3.Row` factory enabled and foreign key support turned on.
+    The connection is automatically closed when the context exits.
+
+    Yields:
+        sqlite3.Connection: The established database connection.
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:

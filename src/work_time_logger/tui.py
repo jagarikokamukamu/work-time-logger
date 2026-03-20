@@ -20,13 +20,26 @@ from . import operations
 from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayInput
 
 class ProjectsTree(Tree):
+    """A custom Tree widget for displaying projects and their children jobs.
+
+    This widget handles selecting jobs to start tracking and provides
+    a shortcut to add manual log entries.
+
+    Attributes:
+        BINDINGS (list[Binding]): Keyboard shortcuts for this widget.
+    """
+
     BINDINGS = [
         Binding("enter", "select_cursor", "Start Job", show=True),
         Binding("a", "add_job_log", "Add Log", show=True),
     ]
 
     def action_add_job_log(self) -> None:
-        """Add a new log assigned to the currently selected job, without starting timer."""
+        """Adds a new log assigned to the currently selected job without starting a timer.
+
+        This action is triggered by the 'a' key binding. It calls
+        `operations.create_assigned_log` and refreshes the application data.
+        """
         node = self.cursor_node
         if node and not node.allow_expand:
             job_name = str(node.label)
@@ -38,6 +51,14 @@ class ProjectsTree(Tree):
                 self.app.notify(f"Error: {e}", severity="error")
 
 class LogsTable(DataTable):
+    """A custom DataTable widget for displaying time log entries.
+
+    Provides bindings for editing and deleting logs directly from the table.
+
+    Attributes:
+        BINDINGS (list[Binding]): Keyboard shortcuts for this widget.
+    """
+
     BINDINGS = [
         Binding("enter", "select_cursor", "Edit", show=True),
         Binding("D", "app.delete_log", "Delete", show=True),
@@ -45,7 +66,16 @@ class LogsTable(DataTable):
 
 
 class WtlApp(App):
-    """A Textual TUI for Work Time Logger."""
+    """The main Textual application for Work Time Logger.
+
+    This app provides a two-pane interface: a projects/jobs tree on the left
+    and a records table on the right. It supports filtering, dashboard views,
+    and log exporting.
+
+    Attributes:
+        CSS (str): The CSS styles for the application.
+        BINDINGS (list[Binding]): Global keyboard shortcuts for the application.
+    """
 
     CSS = """
     #sidebar {
@@ -82,18 +112,24 @@ class WtlApp(App):
     ]
 
     def __init__(self, **kwargs):
+        """Initializes the Work Time Logger application.
+
+        Args:
+            **kwargs: Standard Textual App keyword arguments.
+        """
         super().__init__(**kwargs)
         self.filter_project = None
         self.filter_job = None
         self.filter_date_start = None
         self.filter_date_end = None
-        
+
         # Load duration step from profile
         self.duration_step = 0.1
         try:
             profile_path = operations.db.DB_DIR / "profile.toml"
             if profile_path.exists():
                 import tomllib
+
                 with open(profile_path, "rb") as f:
                     config = tomllib.load(f)
                     self.duration_step = config.get("tui", {}).get("duration_step", 0.1)
@@ -102,7 +138,13 @@ class WtlApp(App):
             pass
 
     def compose(self) -> ComposeResult:
-        """Create child widgets for the app."""
+        """Composes the child widgets for the application.
+
+        This Textual lifecycle method is called to build the application's UI.
+
+        Returns:
+            ComposeResult: The standard Textual compose result, yielding widgets.
+        """
         yield Header()
         with Horizontal():
             with Vertical(id="sidebar"):
@@ -112,14 +154,25 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Date", "Start Time", "End Time", "Duration (h)", "Memo"
+                    "ID",
+                    "Project",
+                    "Job",
+                    "Date",
+                    "Start Time",
+                    "End Time",
+                    "Duration (h)",
+                    "Memo",
                 )
                 yield self.logs_table
         yield Footer()
         yield OverlayInput(id="edit-overlay")
 
     def on_mount(self) -> None:
-        """Called when app starts."""
+        """Called when the application is mounted.
+
+        This Textual lifecycle method is invoked after the DOM is ready.
+        It refreshes data, configures the overlay input, and sets initial focus.
+        """
         self.refresh_data()
         overlay = self.query_one("#edit-overlay", OverlayInput)
         overlay.can_focus = False
@@ -127,6 +180,11 @@ class WtlApp(App):
         self.logs_table.focus()
 
     def refresh_data(self) -> None:
+        """Refreshes all data displayed in the application.
+
+        This method reloads projects, jobs, and log entries, applying any active filters.
+        It also attempts to preserve the cursor position and scroll offset in the logs table.
+        """
         try:
             cursor_coord = self.logs_table.cursor_coordinate
             scroll_x, scroll_y = self.logs_table.scroll_offset
@@ -236,7 +294,14 @@ class WtlApp(App):
             pass
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
-        """Handle Enter key on the Tree."""
+        """Handles the `Tree.NodeSelected` event when a node in the ProjectsTree is selected.
+
+        If a leaf node (job) is selected, it attempts to start a timer for that job.
+        This event is typically triggered by pressing Enter on a tree node.
+
+        Args:
+            event (Tree.NodeSelected): The event object containing information about the selected node.
+        """
         if not event.node.allow_expand:
             job_name = str(event.node.label)
             project_name = str(event.node.parent.label)
@@ -257,6 +322,12 @@ class WtlApp(App):
             self.start_timer_for_selection((project_name, job_name))
 
     def _commit_log_update(self, log_entry: dict, **kwargs) -> None:
+        """Commits updates to a log entry in the database.
+
+        Args:
+            log_entry (dict): The original log entry dictionary.
+            **kwargs: Keyword arguments for the fields to update (e.g., `project_name`, `memo`).
+        """
         data = {
             "log_id": log_entry["id"],
             "project_name": log_entry["project_name"],
@@ -279,28 +350,60 @@ class WtlApp(App):
     def _update_job_for_log(
         self, log_entry: dict, result: tuple[str, str] | None
     ) -> None:
+        """Updates the project and job for a given log entry.
+
+        Args:
+            log_entry (dict): The log entry to update.
+            result (tuple[str, str] | None): A tuple containing (project_name, job_name)
+                or None if no selection was made.
+        """
         if result is None:
             return
         p_name, j_name = result
         self._commit_log_update(log_entry, project_name=p_name, job_name=j_name)
 
     def _update_start_time(self, log_entry: dict, result: str | None) -> None:
+        """Updates the start time for a given log entry.
+
+        Args:
+            log_entry (dict): The log entry to update.
+            result (str | None): The new start time string (ISO format) or None.
+        """
         if result is None:
             return
         self._commit_log_update(log_entry, start_time=result)
 
     def _update_end_time(self, log_entry: dict, result: str | None) -> None:
+        """Updates the end time for a given log entry.
+
+        Args:
+            log_entry (dict): The log entry to update.
+            result (str | None): The new end time string (ISO format) or None.
+        """
         if result is None:
             return
         self._commit_log_update(log_entry, end_time=result)
 
     def _update_memo(self, log_entry: dict, result: str | None) -> None:
+        """Updates the memo for a given log entry.
+
+        Args:
+            log_entry (dict): The log entry to update.
+            result (str | None): The new memo string or None.
+        """
         if result is None:
             return
         self._commit_log_update(log_entry, memo=result)
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
-        """Handle Enter key on a specific cell in the Logs Table."""
+        """Handles the `DataTable.CellSelected` event when a cell in the LogsTable is selected.
+
+        This event is typically triggered by pressing Enter on a table cell.
+        It determines the column and shows an appropriate editor (modal or overlay input).
+
+        Args:
+            event (DataTable.CellSelected): The event object containing information about the selected cell.
+        """
         if not event.cell_key.row_key.value:
             return
         log_id = int(event.cell_key.row_key.value)
@@ -346,19 +449,20 @@ class WtlApp(App):
     def show_edit_overlay(
         self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
     ) -> None:
+        """Displays the `OverlayInput` widget for editing a specific cell.
+
+        Args:
+            log_entry (dict): The log entry being edited.
+            col_index (int): The column index of the cell being edited.
+            value (str): The current value of the cell.
+            edit_mode (str): The editing mode for the overlay input (e.g., "date_only", "time_only", "memo").
+            coordinate (Coordinate): The `DataTable` coordinate of the cell.
+        """
         self._editing_log_entry = log_entry
         self._editing_col_index = col_index
 
         inp = self.query_one("#edit-overlay", OverlayInput)
         inp.edit_mode = edit_mode
-        if edit_mode == "date" and len(value) >= 19:
-            inp.edit_mode = (
-                "date"  # Maybe it should be datetime? Oh, TimeEditModal extracted it.
-            )
-            # wait, timeEdit modal was used for BOTH. I will just render full datetime
-            pass
-
-        # Format the value for editing
         if edit_mode == "date" and "T" in value:
             inp.value = value.replace("T", " ")
         else:
@@ -380,8 +484,16 @@ class WtlApp(App):
 
     @on(Input.Submitted, "#edit-overlay")
     def on_edit_overlay_submitted(self, event: Input.Submitted) -> None:
+        """Handles the `Input.Submitted` event from the edit overlay.
+
+        This event is triggered when the user submits input in the `OverlayInput` widget.
+        It validates the input based on the `edit_mode` and updates the corresponding
+        log entry field.
+
+        Args:
+            event (Input.Submitted): The event object from the submitted input.
+        """
         val = event.value.strip()
-        inp = event.control
         inp = event.control
         if inp.edit_mode == "date_only":
             try:
@@ -471,15 +583,29 @@ class WtlApp(App):
         self.logs_table.focus()
 
     def action_show_help(self) -> None:
+        """Action to display the help modal.
+
+        This action is triggered by the 'h' or 'f1' key binding.
+        """
         self.push_screen(HelpModal())
 
     def action_switch_focus(self) -> None:
+        """Action to switch focus between the ProjectsTree and LogsTable.
+
+        This action is triggered by the 'tab' key binding.
+        """
         if self.focused == self.projects_tree:
             self.logs_table.focus()
         else:
             self.projects_tree.focus()
 
     def action_start_job(self) -> None:
+        """Action to start a job timer.
+
+        If a job is selected in the ProjectsTree, it starts that job.
+        Otherwise, it opens a `JobSelectionModal` to choose a job.
+        This action is triggered by the 's' key binding.
+        """
         # If focused on the tree and a leaf node is selected, start that job.
         if (
             self.focused == self.projects_tree
@@ -505,6 +631,7 @@ class WtlApp(App):
             return
 
         def check_running_and_show_modal():
+            """Helper function to check for running jobs before showing the selection modal."""
             try:
                 # To prevent opening modal if already running
                 operations.start_log("temp_nonexistent", "temp")
@@ -523,6 +650,12 @@ class WtlApp(App):
         check_running_and_show_modal()
 
     def start_timer_for_selection(self, selection: tuple[str, str] | None) -> None:
+        """Starts a timer for the selected project and job.
+
+        Args:
+            selection (tuple[str, str] | None): A tuple containing (project_name, job_name)
+                or None if no selection was made.
+        """
         if selection is None:
             return
 

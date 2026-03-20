@@ -1,11 +1,16 @@
-"""Export module for Work Time Logger."""
+"""Export module for Work Time Logger.
 
-import os
+This module provides functionality to aggregate and export time logs into
+formatted CSV files. It supports regex-based extraction from job codes
+and Jinja2-based template rendering for notes and columns.
+"""
+
 import csv
+import math
+import os
 import re
 import tomllib
-import math
-from datetime import date as date_type, datetime
+from datetime import datetime
 from itertools import groupby
 
 from jinja2 import Environment, Undefined
@@ -17,7 +22,15 @@ _jinja_env = Environment(undefined=Undefined, autoescape=True)
 
 
 def _render(template_str: str, context: dict) -> str:
-    """Render a Jinja2 template string with the given context."""
+    """Render a Jinja2 template string with the given context.
+
+    Args:
+        template_str (str): The Jinja2 template string to render.
+        context (dict): The dictionary of variables for the template.
+
+    Returns:
+        str: The rendered string, or an empty string if rendering fails.
+    """
     try:
         return _jinja_env.from_string(template_str).render(**context)
     except Exception:
@@ -25,8 +38,17 @@ def _render(template_str: str, context: dict) -> str:
 
 
 def _apply_rounding(value: float, precision: int, method: str) -> float:
-    """Apply rounding method (round/floor/ceil) to value at the given decimal precision."""
-    factor = 10 ** precision
+    """Apply rounding method (round/floor/ceil) to a value.
+
+    Args:
+        value (float): The numeric value to round.
+        precision (int): Number of decimal places.
+        method (str): Rounding method: 'round', 'floor', or 'ceil'.
+
+    Returns:
+        float: The rounded value.
+    """
+    factor = 10**precision
     if method == "floor":
         return math.floor(value * factor) / factor
     elif method == "ceil":
@@ -73,12 +95,25 @@ job_code    = "{{ type }}-{{ ticket }}"
 
 
 def export_logs(profile_path: str, output_path: str, target_date: str | None = None):
-    """Export logs based on the provided TOML profile. Generates a default profile if missing.
+    """Export logs based on the provided TOML profile.
+
+    Generates a default profile if the specified one is missing. The process
+    involves:
+    1. Reading logs from the database.
+    2. Filtering by date if requested.
+    3. Extracting metadata from job codes using regex.
+    4. Grouping records based on profile settings.
+    5. Aggregating times and notes.
+    6. Rendering final columns via Jinja2.
 
     Args:
-        profile_path: Path to the TOML profile file.
-        output_path: Path for the output CSV file.
-        target_date: Date string in YYYY-MM-DD format to filter logs by. If None, all logs are exported.
+        profile_path (str): Path to the TOML profile file.
+        output_path (str): Path for the output CSV file.
+        target_date (str | None, optional): Date string in YYYY-MM-DD format.
+            Defaults to None (all logs).
+
+    Returns:
+        int: The number of aggregated rows exported.
     """
 
     if not os.path.exists(profile_path):
@@ -114,7 +149,8 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     # Filter by date if provided
     if target_date:
         logs = [
-            log for log in logs
+            log
+            for log in logs
             if log["start_time"] and log["start_time"][:10] == target_date
         ]
 
@@ -128,7 +164,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
 
         for var, pattern in compiled_regexes.items():
             if pattern:
-                match = pattern.search(job_code if var == "job_code" else row_data.get(var, ""))
+                match = pattern.search(
+                    job_code if var == "job_code" else row_data.get(var, "")
+                )
                 if match:
                     row_data.update(match.groupdict())
 
@@ -151,7 +189,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
             time_hours = 0.0
 
         # time_hours for display in note_item: rounded to time_precision
-        row_data["time_hours"] = _apply_rounding(time_hours, time_precision, time_rounding)
+        row_data["time_hours"] = _apply_rounding(
+            time_hours, time_precision, time_rounding
+        )
         # _raw_time_hours for accurate aggregation summing (no pre-rounding)
         row_data["_raw_time_hours"] = time_hours
         extracted_data.append(row_data)
@@ -170,12 +210,18 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
 
         agg_time = _apply_rounding(total_time, time_precision, time_rounding)
-        
+
         # Sub-group by all fields to aggregate times for identical notes
         sub_groups = {}
         for item in group_items:
             # Key excludes time-based fields
-            sub_key = tuple(sorted((k, str(v)) for k, v in item.items() if k not in ("_raw_time_hours", "time_hours")))
+            sub_key = tuple(
+                sorted(
+                    (k, str(v))
+                    for k, v in item.items()
+                    if k not in ("_raw_time_hours", "time_hours")
+                )
+            )
             if sub_key not in sub_groups:
                 sub_groups[sub_key] = item.copy()
                 sub_groups[sub_key]["_raw_time_hours"] = 0.0
@@ -185,7 +231,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         notes = []
         for sub_item in sub_groups.values():
             # Calc rounded time for this sub-item for use in template
-            sub_item["time_hours"] = _apply_rounding(sub_item["_raw_time_hours"], time_precision, time_rounding)
+            sub_item["time_hours"] = _apply_rounding(
+                sub_item["_raw_time_hours"], time_precision, time_rounding
+            )
             if note_item_template:
                 rendered = _render(note_item_template, sub_item)
                 if rendered:

@@ -13,12 +13,23 @@ _jinja_env = Environment(undefined=Undefined, autoescape=True)
 
 
 def setup():
-    """Initialize the database configuration and tables."""
+    """Initialize the database configuration and tables.
+
+    This function sets up the base directory and creates the SQLite tables
+    if they do not already exist.
+    """
     init_db()
 
 
 def add_project(name: str):
-    """Add a new project to the database."""
+    """Add a new project to the database.
+
+    Args:
+        name (str): The name of the project.
+
+    Returns:
+        int: The ID of the newly created project.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("INSERT INTO projects (name) VALUES (?)", (name,))
@@ -27,7 +38,11 @@ def add_project(name: str):
 
 
 def list_projects():
-    """List all projects in the database."""
+    """List all projects in the database.
+
+    Returns:
+        list[sqlite3.Row]: A list of project records.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM projects")
@@ -35,7 +50,11 @@ def list_projects():
 
 
 def delete_project(project_id: int):
-    """Delete a project by its ID, cascading deletes to its jobs and logs."""
+    """Delete a project by its ID, cascading deletes to its jobs and logs.
+
+    Args:
+        project_id (int): The internal ID of the project to delete.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
@@ -43,7 +62,20 @@ def delete_project(project_id: int):
 
 
 def add_job(name: str, project_name: str, description: str = "", code: str = None):
-    """Add a new job under a specific project."""
+    """Add a new job under a specific project.
+
+    Args:
+        name (str): The name of the job.
+        project_name (str): The name of the project the job belongs to.
+        description (str, optional): A brief description of the job. Defaults to "".
+        code (str, optional): An external reference code (e.g., JIRA ticket). Defaults to None.
+
+    Returns:
+        int: The ID of the newly created job.
+
+    Raises:
+        ValueError: If the project name is not found in the database.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
@@ -60,7 +92,14 @@ def add_job(name: str, project_name: str, description: str = "", code: str = Non
 
 
 def list_jobs(project_name: str = None):
-    """List all jobs, optionally filtering by project name."""
+    """List all jobs, optionally filtering by project name.
+
+    Args:
+        project_name (str, optional): The name of the project to filter by. Defaults to None.
+
+    Returns:
+        list[sqlite3.Row]: A list of job records with joined project names.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         if project_name:
@@ -83,7 +122,14 @@ def list_jobs(project_name: str = None):
 
 
 def delete_job(job_id: int):
-    """Delete a job by its ID."""
+    """Delete a job by its ID.
+
+    Args:
+        job_id (int): The internal ID of the job to delete.
+
+    Raises:
+        ValueError: If the job ID is not found.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
@@ -92,8 +138,25 @@ def delete_job(job_id: int):
         conn.commit()
 
 
-def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = None) -> int:
-    """Import jobs from a CSV file into a given project."""
+def import_jobs_from_csv(
+    filepath: str, project_name: str, profile_path: str = None
+) -> int:
+    """Import jobs from a CSV file into a given project.
+
+    This function uses a TOML profile to map CSV columns to job attributes
+    (name, description, code) using Jinja2 templates.
+
+    Args:
+        filepath (str): Path to the source CSV file.
+        project_name (str): Target project name.
+        profile_path (str, optional): Path to the mapping TOML profile. Defaults to None.
+
+    Returns:
+        int: Number of jobs successfully imported.
+
+    Raises:
+        ValueError: If the project name is not found.
+    """
     import os
     import tomllib
     def render(template_str: str, context: dict) -> str | None:
@@ -104,11 +167,7 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
         except Exception:
             return None
 
-    mapping = {
-        "name": "{{ name }}",
-        "description": "{{ description }}",
-        "code": "{{ code }}"
-    }
+    mapping = {"name": "{{ name }}", "description": "{{ description }}", "code": "{{ code }}"}
 
     if profile_path and os.path.exists(profile_path):
         try:
@@ -147,7 +206,9 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
                 if not name:
                     continue
 
-                description = render(mapping["description"], ctx) or row.get("description", "")
+                description = (
+                    render(mapping["description"], ctx) or row.get("description", "")
+                )
                 code = render(mapping["code"], ctx) or row.get("code")
 
                 try:
@@ -168,7 +229,18 @@ def import_jobs_from_csv(filepath: str, project_name: str, profile_path: str = N
 
 
 def start_log(project_name: str = None, job_name: str = None):
-    """Start tracking a job, optionally leaving it unassigned."""
+    """Start tracking a job, optionally leaving it unassigned.
+
+    Args:
+        project_name (str, optional): The name of the project. Defaults to None.
+        job_name (str, optional): The name of the job. Defaults to None.
+
+    Returns:
+        int: The ID of the newly created log entry.
+
+    Raises:
+        ValueError: If a job is already running, or if the project/job names are not found.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
 
@@ -209,7 +281,14 @@ def start_log(project_name: str = None, job_name: str = None):
 
 
 def stop_log():
-    """Stop tracking the currently running job."""
+    """Stop tracking the currently running job.
+
+    Returns:
+        int: The ID of the stopped log entry.
+
+    Raises:
+        ValueError: If no running jobs are found.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -227,7 +306,19 @@ def stop_log():
 
 
 def assign_log(log_id: int, project_name: str, job_name: str):
-    """Assign an existing log to a specific project and job."""
+    """Assign an existing log to a specific project and job.
+
+    Args:
+        log_id (int): The ID of the log entry.
+        project_name (str): The target project name.
+        job_name (str): The target job name.
+
+    Returns:
+        int: The ID of the assigned log entry.
+
+    Raises:
+        ValueError: If the log ID, project name, or job name is not found.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
 
@@ -260,7 +351,11 @@ def assign_log(log_id: int, project_name: str, job_name: str):
 
 
 def create_empty_log() -> int:
-    """Create a new unassigned log entry with current time for both start and end."""
+    """Create a new unassigned log entry with current time for both start and end.
+
+    Returns:
+        int: The ID of the newly created log entry.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         now = datetime.now().replace(microsecond=0).isoformat()
@@ -289,7 +384,20 @@ def update_log(
     memo: str | None = MISSING,
     duration_hours: float | None = MISSING,
 ) -> None:
-    """Update an existing log entry's details. Omitted fields remain unchanged."""
+    """Update an existing log entry's details. Omitted fields remain unchanged.
+
+    Args:
+        log_id (int): The ID of the log to update.
+        project_name (str | None, optional): New project name or None to unassign.
+        job_name (str | None, optional): New job name or None to unassign.
+        start_time (str | None, optional): New ISO start time string.
+        end_time (str | None, optional): New ISO end time string.
+        memo (str | None, optional): New memo string.
+        duration_hours (float | None, optional): New manual duration in hours.
+
+    Raises:
+        ValueError: If the log ID is not found, or if date/time logic is violated.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM logs WHERE id = ?", (log_id,))
@@ -300,33 +408,39 @@ def update_log(
         # Resolve IDs for project/job names
         p_id = existing["project_id"]
         j_id = existing["job_id"]
-        
+
         # If both project_name and job_name are explicitly provided, resolve IDs
-        # If only one is provided, we might need more complex logic, but usually they come together
         if project_name is not MISSING and job_name is not MISSING:
-             if project_name is None or job_name is None:
-                 p_id = None
-                 j_id = None
-             else:
-                 # Logic to find p_id and j_id from names
-                 cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
-                 p_res = cursor.fetchone()
-                 if p_res:
-                     p_id = p_res["id"]
-                     cursor.execute("SELECT id FROM jobs WHERE name = ? AND project_id = ?", (job_name, p_id))
-                     j_res = cursor.fetchone()
-                     if j_res:
-                         j_id = j_res["id"]
-                     else:
-                         raise ValueError(f"Job '{job_name}' not found under '{project_name}'")
-                 else:
-                     raise ValueError(f"Project '{project_name}' not found")
+            if project_name is None or job_name is None:
+                p_id = None
+                j_id = None
+            else:
+                # Logic to find p_id and j_id from names
+                cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+                p_res = cursor.fetchone()
+                if p_res:
+                    p_id = p_res["id"]
+                    cursor.execute(
+                        "SELECT id FROM jobs WHERE name = ? AND project_id = ?",
+                        (job_name, p_id),
+                    )
+                    j_res = cursor.fetchone()
+                    if j_res:
+                        j_id = j_res["id"]
+                    else:
+                        raise ValueError(
+                            f"Job '{job_name}' not found under '{project_name}'"
+                        )
+                else:
+                    raise ValueError(f"Project '{project_name}' not found")
 
         # Merge values
         final_start = start_time if start_time is not MISSING else existing["start_time"]
         final_end = end_time if end_time is not MISSING else existing["end_time"]
         final_memo = memo if memo is not MISSING else existing["memo"]
-        final_duration = duration_hours if duration_hours is not MISSING else existing["duration_hours"]
+        final_duration = (
+            duration_hours if duration_hours is not MISSING else existing["duration_hours"]
+        )
 
         # Validation
         try:
@@ -352,7 +466,14 @@ def update_log(
 
 
 def delete_log(log_id: int) -> None:
-    """Delete a specific log entry by its ID."""
+    """Delete a specific log entry by its ID.
+
+    Args:
+        log_id (int): The ID of the log entry to delete.
+
+    Raises:
+        ValueError: If the log ID is not found.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM logs WHERE id = ?", (log_id,))
@@ -362,7 +483,11 @@ def delete_log(log_id: int) -> None:
 
 
 def list_logs():
-    """List all tracked time logs."""
+    """List all tracked time logs.
+
+    Returns:
+        list[sqlite3.Row]: A list of log records with joined project and job details.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -378,7 +503,18 @@ def list_logs():
 
 
 def create_assigned_log(project_name: str, job_name: str) -> int:
-    """Create a new log entry pre-assigned to the given project and job, with zero duration."""
+    """Create a new log entry pre-assigned to the project and job.
+
+    Args:
+        project_name (str): The name of the project.
+        job_name (str): The name of the job.
+
+    Returns:
+        int: The ID of the newly created log entry.
+
+    Raises:
+        ValueError: If the project or job name is not found.
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
@@ -398,7 +534,8 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
 
         now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute(
-            "INSERT INTO logs (project_id, job_id, start_time, end_time, duration_hours) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO logs (project_id, job_id, start_time, end_time, duration_hours) "
+            "VALUES (?, ?, ?, ?, ?)",
             (p_id, j_id, now, now, 0.0),
         )
         conn.commit()

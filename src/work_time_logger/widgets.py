@@ -169,6 +169,14 @@ class OverlayInput(Input):
         self._adjust_value(-1)
 
     def _adjust_value(self, delta: int) -> None:
+        """Adjust the current input value based on the edit mode and delta.
+
+        This handles incrementing/decrementing dates, times, and durations
+        using arrow keys.
+
+        Args:
+            delta (int): The amount to adjust (typically 1 or -1).
+        """
         if self.edit_mode == "memo":
             return
 
