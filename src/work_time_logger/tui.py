@@ -75,6 +75,8 @@ class WtlApp(App):
         Binding("S", "start_unassigned", "Start Unassigned Timer", show=False),
         Binding("A", "add_empty_log", "Add Empty Log", show=False),
         Binding("e", "export_logs", "Export Logs", show=True),
+        Binding("v", "show_summary", "Daily Summary", show=True),
+        Binding("d", "show_dashboard", "Dashboard", show=True),
     ]
 
     def __init__(self, **kwargs):
@@ -91,7 +93,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Date", "Start Time", "End Time", "Duration (h)", "Memo"
+                    "ID", "Project", "Job", "Date", "Start Time", "End Time", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -124,6 +126,7 @@ class WtlApp(App):
 
         # Populate Logs table
         self.logs_table.clear()
+        
         self.logs = operations.list_logs()
         for log_entry in self.logs:
             p_name = log_entry["project_name"] or "[未割り当て]"
@@ -144,36 +147,13 @@ class WtlApp(App):
 
             start_disp = format_rel(start_iso)
             end_disp = format_rel(end_iso)
-            memo = log_entry["memo"] or ""
-            duration_hours = log_entry["duration_hours"]
-
-            if duration_hours is not None:
-                # duration_hours manually set: strike and dim start/end
-                dim_start = f"[strike][#585858]{start_disp}[/#585858][/strike]"
-                dim_end   = f"[strike][#585858]{end_disp}[/#585858][/strike]"
-                dur_str = str(duration_hours)
-            else:
-                dim_start = start_disp
-                dim_end   = end_disp
-                try:
-                    if start_iso and end_iso:
-                        s = datetime.fromisoformat(start_iso)
-                        e = datetime.fromisoformat(end_iso)
-                        calc = round((e - s).total_seconds() / 3600, 2)
-                        dur_str = f"[#79a8a8]{calc}[/#79a8a8]"
-                    else:
-                        dur_str = ""
-                except Exception:
-                    dur_str = ""
-
             self.logs_table.add_row(
                 str(log_entry["id"]),
                 p_name,
                 j_name,
                 log_date,
-                dim_start,
-                dim_end,
-                dur_str,
+                start_disp,
+                end_disp,
                 memo,
                 key=str(log_entry["id"]),
             )
@@ -270,20 +250,24 @@ class WtlApp(App):
 
         col_index = event.coordinate.column
 
-        # Columns: 0:ID, 1:Proj, 2:Job, 3:Start, 4:End, 5:Duration(h), 6:Memo
+        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Memo
         if col_index in (1, 2):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
         elif col_index == 3:
-            value = log_entry["start_time"] or ""
-            self.show_edit_overlay(log_entry, 3, value, "date", event.coordinate)
+            # Date field
+            value = log_entry["start_time"][:10] if log_entry["start_time"] else ""
+            self.show_edit_overlay(log_entry, 3, value, "date_only", event.coordinate)
         elif col_index == 4:
-            value = log_entry["end_time"] or ""
-            self.show_edit_overlay(log_entry, 4, value, "date", event.coordinate)
+            # Start Time field
+            value = log_entry["start_time"] or "" # show_edit_overlay will handle formatting if needed, but we pass raw for now
+            self.show_edit_overlay(log_entry, 4, value, "time_only", event.coordinate)
         elif col_index == 5:
-            value = str(log_entry["duration_hours"]) if log_entry["duration_hours"] is not None else ""
-            self.show_edit_overlay(log_entry, 5, value, "duration", event.coordinate)
+            # End Time field
+            value = log_entry["end_time"] or ""
+            self.show_edit_overlay(log_entry, 5, value, "time_only", event.coordinate)
         elif col_index == 6:
+            # Memo field
             value = log_entry["memo"] or ""
             self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
 
@@ -326,32 +310,35 @@ class WtlApp(App):
     def on_edit_overlay_submitted(self, event: Input.Submitted) -> None:
         val = event.value.strip()
         inp = event.control
-        if inp.edit_mode == "date":
-            val = val.replace("/", "-")
+        inp = event.control
+        if inp.edit_mode == "date_only":
             try:
-                if len(val) > 10:
-                    dt = datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
-                    val = dt.strftime("%Y-%m-%dT%H:%M:%S")
-                else:
-                    dt = datetime.strptime(val, "%Y-%m-%d")
-                    val = dt.strftime("%Y-%m-%dT00:00:00")
+                # Ensure it's valid date
+                datetime.strptime(val, "%Y-%m-%d")
             except ValueError:
-                self.notify("Format must be YYYY-MM-DD HH:MM:SS", severity="error")
+                self.notify("Format must be YYYY-MM-DD", severity="error")
                 return
+        elif inp.edit_mode == "time_only":
+            # HH:mm:ss or full ISO
+            if " " in val: val = val.replace(" ", "T")
+            # If only time, we might need more logic, but operations layer usually handles it or we normalize here
+            pass
 
+        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Memo
         if self._editing_col_index == 3:
-            self._update_start_time(self._editing_log_entry, val)
+            # Update date of start_time
+            if len(val) == 10:
+                current_start = self._editing_log_entry["start_time"]
+                new_start = val + current_start[10:]
+                self._update_start_time(self._editing_log_entry, new_start)
         elif self._editing_col_index == 4:
-            self._update_end_time(self._editing_log_entry, val)
+            # Start Time
+            self._update_start_time(self._editing_log_entry, val)
         elif self._editing_col_index == 5:
-            # duration_hours column
-            try:
-                duration = float(val) if val else None
-            except ValueError:
-                self.notify("数値を入力してください (例: 2.5)", severity="error")
-                return
-            self._commit_log_update(self._editing_log_entry, duration_hours=duration)
+            # End Time
+            self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 6:
+            # Memo
             self._update_memo(self._editing_log_entry, val)
 
         inp.can_focus = False
@@ -493,6 +480,18 @@ class WtlApp(App):
                 self.notify(f"Export Error: {e} (See wtl_error.log)", severity="error")
 
         self.push_screen(ExportLogsModal(), handle_export)
+
+    def action_show_summary(self) -> None:
+        """Action handler to show the Daily Summary modal."""
+        from .widgets import DailySummaryModal
+        self.push_screen(DailySummaryModal())
+
+    def action_show_dashboard(self) -> None:
+        """Action handler to show the Dashboard screen."""
+        from .dashboard import DashboardScreen
+        self.push_screen(DashboardScreen())
+
+
 if __name__ == "__main__":
     app = WtlApp()
     app.run()

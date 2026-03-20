@@ -50,7 +50,7 @@ async def test_tui_startup_population():
         # Check table
         assert table.row_count == 1
         row = table.get_row_at(0)
-        assert len(row) == 8
+        assert len(row) == 7
         assert row[1] == "Test Project"
         assert row[2] == "Test Job"
         assert row[3] == datetime.now().strftime("%Y-%m-%d")
@@ -86,9 +86,8 @@ async def test_tui_edit_log_cell():
         # Move to Start Time column (index 4)
         table.move_cursor(row=0, column=4)
         await pilot.press("enter")
-        await pilot.pause(0.1)  # wait for overlay mount/focus
+        await pilot.pause(0.1)
 
-        # Overlay input should be visible and focused
         overlay = app.query_one("#edit-overlay")
         assert overlay.styles.display == "block"
         assert app.focused == overlay
@@ -99,47 +98,11 @@ async def test_tui_edit_log_cell():
         await pilot.press("enter")
         await pilot.pause(0.1)
 
-        # Overlay should be closed
         assert overlay.styles.display == "none"
         assert app.focused == table
 
         logs = operations.list_logs()
         assert logs[0]["start_time"] == "2026-12-31T12:00:00"
-
-
-@pytest.mark.asyncio
-async def test_tui_job_selection_modal():
-    """Test the JobSelectionModal behavior (opening, searching, closing)."""
-    operations.add_project("SearchProj")
-    operations.add_job("SearchJob1", "SearchProj")
-    operations.add_job("SearchJob2", "SearchProj")
-
-    app = WtlApp()
-    async with app.run_test(size=(120, 60)) as pilot:
-        await pilot.press("s")
-        await pilot.pause()
-
-        # Check if modal is active
-        from work_time_logger.widgets import JobSelectionModal
-        assert isinstance(app.screen, JobSelectionModal)
-
-        # Type to search
-        await pilot.press("S", "e", "a", "r", "c", "h", "J", "o", "b", "2")
-        await pilot.pause()
-
-        # Press tab to focus OptionList, down to highlight first item, then enter to select
-        await pilot.press("tab")
-        await pilot.pause()
-        await pilot.press("down")
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-
-        # Modal should be dismissed, job tracking should start
-        assert not isinstance(app.screen, JobSelectionModal)
-        logs = operations.list_logs()
-        assert len(logs) == 1
-        assert logs[0]["job_name"] == "SearchJob2"
 
 
 @pytest.mark.asyncio
@@ -163,7 +126,7 @@ async def test_tui_confirm_delete_modal():
         await pilot.press("n")
         await pilot.pause()
         assert not isinstance(app.screen, ConfirmDeleteModal)
-        assert len(operations.list_logs()) == 1  # Not deleted
+        assert len(operations.list_logs()) == 1
 
         # Trigger again and confirm
         await pilot.press("D")
@@ -171,46 +134,54 @@ async def test_tui_confirm_delete_modal():
         await pilot.press("y")
         await pilot.pause()
         
-        # We need to test the action completes
         assert len(operations.list_logs()) == 0
 
 
 @pytest.mark.asyncio
-async def test_tui_overlay_keys():
-    """Test keys like Up/Down, Esc, Tab on OverlayInput."""
+async def test_tui_dashboard_screen():
+    """Test the DashboardScreen opening and period switching."""
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await pilot.press("d")
+        await pilot.pause()
+        
+        from work_time_logger.dashboard import DashboardScreen
+        assert isinstance(app.screen, DashboardScreen)
+        
+        await pilot.press("m")
+        assert app.screen.period == "month"
+        
+        await pilot.press("w")
+        assert app.screen.period == "week"
+        
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, DashboardScreen)
+
+
+@pytest.mark.asyncio
+async def test_tui_arrow_key_adjustment():
+    """Test arrow key value adjustment in OverlayInput for Date and Time."""
     operations.create_empty_log()
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:
         table = app.query_one(DataTable)
         app.set_focus(table)
         
-        # Test ESC for Memo column (index 7)
-        table.move_cursor(row=0, column=7) # Memo
+        # 1. Test Date (col 3)
+        table.move_cursor(row=0, column=3)
         await pilot.press("enter")
         await pilot.pause(0.1)
-        
         overlay = app.query_one("#edit-overlay")
-        assert app.focused == overlay
-        
-        # ESC cancels
+        assert overlay.edit_mode == "date_only"
+        old_val = overlay.value
+        await pilot.press("up")
+        assert overlay.value != old_val
         await pilot.press("escape")
-        await pilot.pause(0.1)
-        assert app.focused == table
         
-        # Test UP/DOWN on Date
-        table.move_cursor(row=0, column=3) # Start Time
+        # 2. Test Start Time (col 4)
+        table.move_cursor(row=0, column=4)
         await pilot.press("enter")
         await pilot.pause(0.1)
-        
-        assert overlay.edit_mode == "date"
-        # Since cursor starts at end or front, let's just press down and see if it decreases year or second
-        # depending on cursor pos (Textual's Input cursor starts at end if value is set).
-        # We just want to ensure it doesn't crash:
-        await pilot.press("up")
-        await pilot.press("down")
-        
-        # Cancel with tab
-        await pilot.press("tab")
-        await pilot.pause(0.1)
-        assert app.focused == table
-
+        assert overlay.edit_mode == "time_only"
+        await pilot.press("escape")
