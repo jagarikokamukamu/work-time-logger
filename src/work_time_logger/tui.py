@@ -6,6 +6,7 @@ from functools import partial
 
 from textual import on
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
     DataTable,
@@ -14,10 +15,10 @@ from textual.widgets import (
     Input,
     Tree,
 )
-from textual.binding import Binding
 
 from . import operations
 from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayInput
+
 
 class ProjectsTree(Tree):
     """A custom Tree widget for displaying projects and their children jobs.
@@ -49,6 +50,7 @@ class ProjectsTree(Tree):
                 self.app.refresh_data()
             except Exception as e:
                 self.app.notify(f"Error: {e}", severity="error")
+
 
 class LogsTable(DataTable):
     """A custom DataTable widget for displaying time log entries.
@@ -202,7 +204,7 @@ class WtlApp(App):
 
         # Populate Logs table
         self.logs_table.clear()
-        
+
         # Apply current filters
         all_logs = operations.list_logs()
         filtered = []
@@ -221,19 +223,20 @@ class WtlApp(App):
         for log_entry in self.logs:
             p_name = log_entry["project_name"] or "[未割り当て]"
             j_name = log_entry["job_name"] or "[未割り当て]"
-            
+
             start_iso = log_entry["start_time"]
             end_iso = log_entry["end_time"]
-            
+
             log_date = start_iso[:10]
-            
-            def format_rel(iso_str):
-                if not iso_str: return "Running..."
+
+            def format_rel(iso_str, log_date=log_date):
+                if not iso_str:
+                    return "Running..."
                 dt = datetime.fromisoformat(iso_str)
                 base = datetime.fromisoformat(log_date + "T00:00:00")
                 diff = dt - base
                 secs = int(diff.total_seconds())
-                return f"{secs//3600:02}:{(secs%3600)//60:02}"
+                return f"{secs // 3600:02}:{(secs % 3600) // 60:02}"
 
             start_disp = format_rel(start_iso)
             end_disp = format_rel(end_iso)
@@ -243,11 +246,11 @@ class WtlApp(App):
             if duration_hours is not None:
                 # duration_hours manually set: strike and dim start/end
                 dim_start = f"[strike][#585858]{start_disp}[/#585858][/strike]"
-                dim_end   = f"[strike][#585858]{end_disp}[/#585858][/strike]"
+                dim_end = f"[strike][#585858]{end_disp}[/#585858][/strike]"
                 dur_str = str(duration_hours)
             else:
                 dim_start = start_disp
-                dim_end   = end_disp
+                dim_end = end_disp
                 try:
                     if start_iso and end_iso:
                         s = datetime.fromisoformat(start_iso)
@@ -415,7 +418,7 @@ class WtlApp(App):
             # Start Time field
             raw = log_entry["start_time"]
             if raw and len(raw) >= 19:
-                value = raw[11:16] # HH:mm
+                value = raw[11:16]  # HH:mm
             else:
                 value = raw or ""
             self.show_edit_overlay(log_entry, 4, value, "time_only", event.coordinate)
@@ -423,13 +426,17 @@ class WtlApp(App):
             # End Time field
             raw = log_entry["end_time"]
             if raw and len(raw) >= 19:
-                value = raw[11:16] # HH:mm
+                value = raw[11:16]  # HH:mm
             else:
                 value = raw or ""
             self.show_edit_overlay(log_entry, 5, value, "time_only", event.coordinate)
         elif col_index == 6:
             # Duration field
-            value = str(log_entry["duration_hours"]) if log_entry["duration_hours"] is not None else ""
+            value = (
+                str(log_entry["duration_hours"])
+                if log_entry["duration_hours"] is not None
+                else ""
+            )
             self.show_edit_overlay(log_entry, 6, value, "duration", event.coordinate)
         elif col_index == 7:
             # Memo field
@@ -495,8 +502,9 @@ class WtlApp(App):
         elif inp.edit_mode == "time_only":
             # HH:mm or full ISO
             try:
-                if " " in val: val = val.replace(" ", "T")
-                if len(val) == 5 and ":" in val: # HH:mm
+                if " " in val:
+                    val = val.replace(" ", "T")
+                if len(val) == 5 and ":" in val:  # HH:mm
                     # Check if valid time
                     try:
                         h, m = map(int, val.split(":"))
@@ -518,20 +526,24 @@ class WtlApp(App):
                 # Need date to compare
                 dt_part = (current_log["end_time"] or current_log["start_time"])[:10]
                 new_val = f"{dt_part}T{val}:00"
-            
+
             try:
-                if self._editing_col_index == 4: # Start Time
+                if self._editing_col_index == 4:  # Start Time
                     st = datetime.fromisoformat(new_val)
                     if current_log["end_time"]:
                         et = datetime.fromisoformat(current_log["end_time"])
                         if et < st:
-                            self.notify("Start time cannot be after end time.", severity="error")
+                            self.notify(
+                                "Start time cannot be after end time.", severity="error"
+                            )
                             return
-                elif self._editing_col_index == 5: # End Time
+                elif self._editing_col_index == 5:  # End Time
                     et = datetime.fromisoformat(new_val)
                     st = datetime.fromisoformat(current_log["start_time"])
                     if et < st:
-                        self.notify("End time cannot be before start time.", severity="error")
+                        self.notify(
+                            "End time cannot be before start time.", severity="error"
+                        )
                         return
             except Exception:
                 pass
@@ -545,14 +557,17 @@ class WtlApp(App):
                 self._update_start_time(self._editing_log_entry, new_start)
         elif self._editing_col_index == 4:
             # Start Time
-            if len(val) == 5 and ":" in val: # HH:mm
+            if len(val) == 5 and ":" in val:  # HH:mm
                 current_date = self._editing_log_entry["start_time"][:10]
                 val = f"{current_date}T{val}:00"
             self._update_start_time(self._editing_log_entry, val)
         elif self._editing_col_index == 5:
             # End Time
-            if len(val) == 5 and ":" in val: # HH:mm
-                current_date = (self._editing_log_entry["end_time"] or self._editing_log_entry["start_time"])[:10]
+            if len(val) == 5 and ":" in val:  # HH:mm
+                current_date = (
+                    self._editing_log_entry["end_time"]
+                    or self._editing_log_entry["start_time"]
+                )[:10]
                 val = f"{current_date}T{val}:00"
             self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 6:
@@ -706,17 +721,21 @@ class WtlApp(App):
         """Action handler to export logs using a user-specified TOML profile."""
         from .widgets import ExportLogsModal
         from . import exporter
-        
+
         def handle_export(data: tuple[str, str, str] | None) -> None:
             if not data:
                 return
             profile_path, output_path, date_val = data
             target_date = None if date_val.lower() == "all" else date_val
             try:
-                count = exporter.export_logs(profile_path, output_path, target_date=target_date)
+                count = exporter.export_logs(
+                    profile_path, output_path, target_date=target_date
+                )
                 if count > 0:
                     label = target_date if target_date else "all dates"
-                    self.notify(f"Successfully exported {count} grouped rows to {output_path} ({label})")
+                    self.notify(
+                        f"Successfully exported {count} grouped rows to {output_path} ({label})"
+                    )
                 else:
                     self.notify("No logs matched or exported.", severity="warning")
             except Exception as e:
@@ -730,22 +749,26 @@ class WtlApp(App):
     def action_show_summary(self) -> None:
         """Action handler to show the Daily Summary modal."""
         from .widgets import DailySummaryModal
+
         self.push_screen(DailySummaryModal())
 
     def action_show_dashboard(self) -> None:
         """Action handler to show the Dashboard screen."""
         from .dashboard import DashboardScreen
+
         self.push_screen(DashboardScreen())
 
     def action_show_filter(self) -> None:
         """Action handler to show the Filter modal."""
         from .widgets import FilterModal
+
         current = {
             "project": self.filter_project,
             "job": self.filter_job,
             "start": self.filter_date_start,
-            "end": self.filter_date_end
+            "end": self.filter_date_end,
         }
+
         def handle_filter(res: dict | None) -> None:
             if res is None:
                 return
