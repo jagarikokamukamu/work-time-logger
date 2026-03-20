@@ -14,9 +14,9 @@
 
 ```toml
 [import.mapping]
-name = "{name}"
-description = "{description}"
-job_code = "{type}-{ticket}"
+name = "{{ name }}"
+description = "{{ description }}"
+job_code = "{{ type }}-{{ ticket }}"
 ```
 
 ## 2. ジョブの準備とインポート
@@ -36,7 +36,7 @@ Document API,Writing API docs for new endpoint,DOC,055
 
 ```bash
 # プロジェクトの作成
-uv run wtl project add -n "Example Project"
+uv run wtl project add -p "Example Project"
 
 # プロファイル（雛形）を利用したCSVのインポート
 uv run wtl job import docs/sample-jobs.csv -p "Example Project"
