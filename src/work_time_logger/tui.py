@@ -521,7 +521,7 @@ class WtlApp(App):
                         if not (0 <= h < 24 and 0 <= m < 60):
                             raise ValueError("Invalid time values.")
                     except ValueError:
-                        raise ValueError("Format must be HH:mm (e.g. 09:30)")
+                        raise ValueError("Format must be HH:mm (e.g. 09:30)") from None
                 else:
                     # Try full iso parse
                     datetime.fromisoformat(val)
