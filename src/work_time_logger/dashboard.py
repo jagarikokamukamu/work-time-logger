@@ -1,11 +1,12 @@
+"""Dashboard screen for visualizing work statistics."""
+
 from datetime import datetime, timedelta
-from itertools import groupby
 
 from textual.app import ComposeResult
-from textual.containers import Container, Vertical, Horizontal
-from textual.screen import Screen
-from textual.widgets import Static, DataTable, Button, Header, Footer
 from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical
+from textual.screen import Screen
+from textual.widgets import Button, DataTable, Footer, Header, Static
 
 from . import operations
 
@@ -162,7 +163,9 @@ class DashboardScreen(Screen):
             project_totals[p] = project_totals.get(p, 0.0) + h
             total_period_hours += h
 
-        sorted_projects = sorted(project_totals.items(), key=lambda x: x[1], reverse=True)
+        sorted_projects = sorted(
+            project_totals.items(), key=lambda x: x[1], reverse=True
+        )
         for p, h in sorted_projects:
             pct = (h / total_period_hours * 100) if total_period_hours > 0 else 0
             bar = "█" * int(pct / 5)
@@ -182,7 +185,6 @@ class DashboardScreen(Screen):
                     h = (e - s).total_seconds() / 3600.0
                 daily_totals[day_idx] += h or 0.0
 
-        max_h = max(daily_totals) if daily_totals else 0
         chart_lines = []
         # Header with dates
         header = "Day: "
