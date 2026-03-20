@@ -213,6 +213,7 @@ class WtlApp(App):
             "start_time": log_entry["start_time"],
             "end_time": log_entry["end_time"],
             "memo": log_entry["memo"],
+            "duration_hours": log_entry["duration_hours"],
         }
         data.update(kwargs)
         try:
