@@ -183,8 +183,9 @@ class WtlApp(App):
     def refresh_data(self) -> None:
         """Refreshes all data displayed in the application.
 
-        This method reloads projects, jobs, and log entries, applying any active filters.
-        It also attempts to preserve the cursor position and scroll offset in the logs table.
+        This method reloads projects, jobs, and log entries, applying any
+        active filters. It also attempts to preserve the cursor position
+        and scroll offset in the logstable.
         """
         try:
             cursor_coord = self.logs_table.cursor_coordinate
@@ -293,7 +294,8 @@ class WtlApp(App):
         This event is typically triggered by pressing Enter on a tree node.
 
         Args:
-            event (Tree.NodeSelected): The event object containing information about the selected node.
+            event (Tree.NodeSelected): The event object containing information about
+                the selected node.
         """
         if not event.node.allow_expand:
             job_name = str(event.node.label)
@@ -319,7 +321,8 @@ class WtlApp(App):
 
         Args:
             log_entry (dict): The original log entry dictionary.
-            **kwargs: Keyword arguments for the fields to update (e.g., `project_name`, `memo`).
+            **kwargs: Keyword arguments for the fields to update
+                (e.g., `project_name`, `memo`).
         """
         data = {
             "log_id": log_entry["id"],
@@ -389,13 +392,15 @@ class WtlApp(App):
         self._commit_log_update(log_entry, memo=result)
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
-        """Handles the `DataTable.CellSelected` event when a cell in the LogsTable is selected.
+        """Handles the `DataTable.CellSelected` event.
 
-        This event is typically triggered by pressing Enter on a table cell.
-        It determines the column and shows an appropriate editor (modal or overlay input).
+        This event is triggered when a cell in the LogsTable is selected,
+        typically by pressing Enter. It determines the column and shows an
+        appropriate editor (modal or overlay input).
 
         Args:
-            event (DataTable.CellSelected): The event object containing information about the selected cell.
+            event (DataTable.CellSelected): The event object containing
+                information about the selected cell.
         """
         if not event.cell_key.row_key.value:
             return
@@ -452,7 +457,8 @@ class WtlApp(App):
             log_entry (dict): The log entry being edited.
             col_index (int): The column index of the cell being edited.
             value (str): The current value of the cell.
-            edit_mode (str): The editing mode for the overlay input (e.g., "date_only", "time_only", "memo").
+            edit_mode (str): The editing mode for the overlay input
+                (e.g., "date_only", "time_only", "memo").
             coordinate (Coordinate): The `DataTable` coordinate of the cell.
         """
         self._editing_log_entry = log_entry
@@ -483,9 +489,9 @@ class WtlApp(App):
     def on_edit_overlay_submitted(self, event: Input.Submitted) -> None:
         """Handles the `Input.Submitted` event from the edit overlay.
 
-        This event is triggered when the user submits input in the `OverlayInput` widget.
-        It validates the input based on the `edit_mode` and updates the corresponding
-        log entry field.
+        This event is triggered when the user submits input in the `OverlayInput`
+        widget. It validates the input based on the `edit_mode` and updates
+        the corresponding log entry field.
 
         Args:
             event (Input.Submitted): The event object from the submitted input.
@@ -548,7 +554,7 @@ class WtlApp(App):
             except Exception:
                 pass
 
-        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo
+        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo # noqa: E501
         if self._editing_col_index == 3:
             # Update date of start_time
             if len(val) == 10:
@@ -657,8 +663,8 @@ class WtlApp(App):
         """Starts a timer for the selected project and job.
 
         Args:
-            selection (tuple[str, str] | None): A tuple containing (project_name, job_name)
-                or None if no selection was made.
+            selection (tuple[str, str] | None): A tuple containing
+                (project_name, job_name) or None if no selection was made.
         """
         if selection is None:
             return
@@ -719,8 +725,8 @@ class WtlApp(App):
 
     def action_export_logs(self) -> None:
         """Action handler to export logs using a user-specified TOML profile."""
-        from .widgets import ExportLogsModal
         from . import exporter
+        from .widgets import ExportLogsModal
 
         def handle_export(data: tuple[str, str, str] | None) -> None:
             if not data:
