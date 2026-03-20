@@ -62,7 +62,8 @@ def add_job(name: str, project_name: str, description: str = "", code: str = Non
         name (str): The name of the job.
         project_name (str): The name of the project the job belongs to.
         description (str, optional): A brief description of the job. Defaults to "".
-        code (str, optional): An external reference code (e.g., JIRA ticket). Defaults to None.
+        code (str, optional): An external reference code (e.g., JIRA ticket).
+            Defaults to None.
 
     Returns:
         int: The ID of the newly created job.
@@ -78,7 +79,8 @@ def add_job(name: str, project_name: str, description: str = "", code: str = Non
             raise ValueError(f"Project '{project_name}' not found.")
         project_id = result["id"]
         cursor.execute(
-            "INSERT INTO jobs (project_id, name, description, code) VALUES (?, ?, ?, ?)",
+            "INSERT INTO jobs (project_id, name, description, code) "
+            "VALUES (?, ?, ?, ?)",
             (project_id, name, description, code),
         )
         conn.commit()
@@ -89,7 +91,8 @@ def list_jobs(project_name: str = None):
     """List all jobs, optionally filtering by project name.
 
     Args:
-        project_name (str, optional): The name of the project to filter by. Defaults to None.
+        project_name (str, optional): The name of the project to filter by.
+            Defaults to None.
 
     Returns:
         list[sqlite3.Row]: A list of job records with joined project names.
@@ -143,7 +146,8 @@ def import_jobs_from_csv(
     Args:
         filepath (str): Path to the source CSV file.
         project_name (str): Target project name.
-        profile_path (str, optional): Path to the mapping TOML profile. Defaults to None.
+        profile_path (str, optional): Path to the mapping TOML profile.
+            Defaults to None.
 
     Returns:
         int: Number of jobs successfully imported.
@@ -166,7 +170,11 @@ def import_jobs_from_csv(
         except Exception:
             return None
 
-    mapping = {"name": "{{ name }}", "description": "{{ description }}", "code": "{{ code }}"}
+    mapping = {
+        "name": "{{ name }}",
+        "description": "{{ description }}",
+        "code": "{{ code }}",
+    }
 
     if profile_path and os.path.exists(profile_path):
         try:
@@ -203,8 +211,8 @@ def import_jobs_from_csv(
                 if not name:
                     continue
 
-                description = (
-                    render(mapping["description"], ctx) or row.get("description", "")
+                description = render(mapping["description"], ctx) or row.get(
+                    "description", ""
                 )
                 code = render(mapping["code"], ctx) or row.get("code")
 
@@ -221,7 +229,6 @@ def import_jobs_from_csv(
         return count
 
 
-
 def start_log(project_name: str = None, job_name: str = None):
     """Start tracking a job, optionally leaving it unassigned.
 
@@ -233,7 +240,8 @@ def start_log(project_name: str = None, job_name: str = None):
         int: The ID of the newly created log entry.
 
     Raises:
-        ValueError: If a job is already running, or if the project/job names are not found.
+        ValueError: If a job is already running, or if the project/job names are
+            not found.
     """
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -366,6 +374,7 @@ class _MissingType:
     def __repr__(self):
         return "MISSING"
 
+
 MISSING = _MissingType()
 
 
@@ -410,7 +419,9 @@ def update_log(
                 j_id = None
             else:
                 # Logic to find p_id and j_id from names
-                cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+                cursor.execute(
+                    "SELECT id FROM projects WHERE name = ?", (project_name,)
+                )
                 p_res = cursor.fetchone()
                 if p_res:
                     p_id = p_res["id"]
@@ -429,11 +440,15 @@ def update_log(
                     raise ValueError(f"Project '{project_name}' not found")
 
         # Merge values
-        final_start = start_time if start_time is not MISSING else existing["start_time"]
+        final_start = (
+            start_time if start_time is not MISSING else existing["start_time"]
+        )
         final_end = end_time if end_time is not MISSING else existing["end_time"]
         final_memo = memo if memo is not MISSING else existing["memo"]
         final_duration = (
-            duration_hours if duration_hours is not MISSING else existing["duration_hours"]
+            duration_hours
+            if duration_hours is not MISSING
+            else existing["duration_hours"]
         )
 
         # Validation
@@ -451,7 +466,8 @@ def update_log(
         cursor.execute(
             """
             UPDATE logs
-            SET project_id = ?, job_id = ?, start_time = ?, end_time = ?, memo = ?, duration_hours = ?
+            SET project_id = ?, job_id = ?, start_time = ?, end_time = ?,
+                memo = ?, duration_hours = ?
             WHERE id = ?
             """,
             (p_id, j_id, final_start, final_end, final_memo, final_duration, log_id),
@@ -528,8 +544,8 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
 
         now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute(
-            "INSERT INTO logs (project_id, job_id, start_time, end_time, duration_hours) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO logs (project_id, job_id, start_time, end_time, "
+            "duration_hours) VALUES (?, ?, ?, ?, ?)",
             (p_id, j_id, now, now, 0.0),
         )
         conn.commit()

@@ -50,7 +50,7 @@ class ProjectsTree(Tree):
     ]
 
     def action_add_job_log(self) -> None:
-        """Adds a new log assigned to the currently selected job without starting a timer.
+        """Adds a new log to the selected job without starting a timer.
 
         This action is triggered by the 'a' key binding. It calls
         `operations.create_assigned_log` and refreshes the application data.
@@ -302,7 +302,7 @@ class WtlApp(App):
             pass
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
-        """Handles the `Tree.NodeSelected` event when a node in the ProjectsTree is selected.
+        """Handles the `Tree.NodeSelected` event for the ProjectsTree.
 
         If a leaf node (job) is selected, it attempts to start a timer for that job.
         This event is typically triggered by pressing Enter on a tree node.
@@ -663,7 +663,7 @@ class WtlApp(App):
             return
 
         def check_running_and_show_modal():
-            """Helper function to check for running jobs before showing the selection modal."""
+            """Helper to check for running jobs before showing selection modal."""
             try:
                 # To prevent opening modal if already running
                 operations.start_log("temp_nonexistent", "temp")
@@ -699,6 +699,7 @@ class WtlApp(App):
             self.notify(f"Error: {e}", severity="error")
 
     def action_stop_job(self) -> None:
+        """Action handler to stop the currently running job."""
         try:
             operations.stop_log()
             self.refresh_data()
@@ -706,6 +707,7 @@ class WtlApp(App):
             self.notify(f"Error: {e}", severity="error")
 
     def action_start_unassigned(self) -> None:
+        """Action handler to start an unassigned log entry."""
         try:
             operations.start_log(None, None)
             self.refresh_data()
@@ -762,7 +764,8 @@ class WtlApp(App):
                 if count > 0:
                     label = target_date if target_date else "all dates"
                     self.notify(
-                        f"Successfully exported {count} grouped rows to {output_path} ({label})"
+                        f"Successfully exported {count} grouped rows to "
+                        f"{output_path} ({label})"
                     )
                 else:
                     self.notify("No logs matched or exported.", severity="warning")

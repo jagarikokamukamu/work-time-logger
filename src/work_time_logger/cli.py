@@ -137,7 +137,9 @@ def stop():
 
 @project_app.command("add")
 def add_project(
-    name: str = typer.Option(..., "--project", "-p", help="Name of the project to add."),
+    name: str = typer.Option(
+        ..., "--project", "-p", help="Name of the project to add."
+    ),
 ):
     """Add a new project.
 
@@ -165,7 +167,7 @@ def list_projects():
 
 @project_app.command("delete")
 def delete_project(
-    project_id: int = typer.Argument(..., help="ID of the project to delete.")
+    project_id: int = typer.Argument(..., help="ID of the project to delete."),
 ):
     """Delete a project by ID.
 
@@ -347,7 +349,8 @@ def assign(
 def list_logs():
     """List logs.
 
-    Displays a table of all recorded time logs, including project, job, times, and memos.
+    Displays a table of all recorded time logs, including project, job, times,
+    and memos.
     """
     logs = operations.list_logs()
     table = Table("ID", "Project", "Job", "Job Code", "Start Time", "End Time", "Memo")
@@ -410,7 +413,8 @@ def export_logs(
         if count > 0:
             label = target_date if target_date else "all dates"
             console.print(
-                f"[green]Successfully exported {count} grouped rows to {out} ({label})[/green]"
+                f"[green]Successfully exported {count} grouped rows to {out} "
+                f"({label})[/green]"
             )
         else:
             console.print("[yellow]No logs matched or exported.[/yellow]")
