@@ -295,16 +295,24 @@ class WtlApp(App):
             self.show_edit_overlay(log_entry, 3, value, "date_only", event.coordinate)
         elif col_index == 4:
             # Start Time field
-            value = log_entry["start_time"] or "" # show_edit_overlay will handle formatting if needed, but we pass raw for now
+            raw = log_entry["start_time"]
+            if raw and len(raw) >= 19:
+                value = raw[11:19] # HH:mm:ss
+            else:
+                value = raw or ""
             self.show_edit_overlay(log_entry, 4, value, "time_only", event.coordinate)
         elif col_index == 5:
             # End Time field
-            value = log_entry["end_time"] or ""
+            raw = log_entry["end_time"]
+            if raw and len(raw) >= 19:
+                value = raw[11:19] # HH:mm:ss
+            else:
+                value = raw or ""
             self.show_edit_overlay(log_entry, 5, value, "time_only", event.coordinate)
         elif col_index == 6:
             # Duration field
             value = str(log_entry["duration_hours"]) if log_entry["duration_hours"] is not None else ""
-            self.show_edit_overlay(log_entry, 6, value, "memo", event.coordinate)
+            self.show_edit_overlay(log_entry, 6, value, "duration", event.coordinate)
         elif col_index == 7:
             # Memo field
             value = log_entry["memo"] or ""
@@ -372,9 +380,15 @@ class WtlApp(App):
                 self._update_start_time(self._editing_log_entry, new_start)
         elif self._editing_col_index == 4:
             # Start Time
+            if len(val) == 8 and ":" in val: # HH:mm:ss
+                current_date = self._editing_log_entry["start_time"][:10]
+                val = f"{current_date}T{val}"
             self._update_start_time(self._editing_log_entry, val)
         elif self._editing_col_index == 5:
             # End Time
+            if len(val) == 8 and ":" in val: # HH:mm:ss
+                current_date = (self._editing_log_entry["end_time"] or self._editing_log_entry["start_time"])[:10]
+                val = f"{current_date}T{val}"
             self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == 6:
             # duration_hours
