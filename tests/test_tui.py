@@ -1,5 +1,6 @@
 """Unit tests for the Textual TUI using pytest and textual.testing."""
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -49,9 +50,10 @@ async def test_tui_startup_population():
         # Check table
         assert table.row_count == 1
         row = table.get_row_at(0)
-        assert len(row) == 7
+        assert len(row) == 8
         assert row[1] == "Test Project"
         assert row[2] == "Test Job"
+        assert row[3] == datetime.now().strftime("%Y-%m-%d")
 
 
 @pytest.mark.asyncio
@@ -81,8 +83,8 @@ async def test_tui_edit_log_cell():
         table = app.query_one(DataTable)
         app.set_focus(table)
 
-        # Move to Start Time column (index 3)
-        table.move_cursor(row=0, column=3)
+        # Move to Start Time column (index 4)
+        table.move_cursor(row=0, column=4)
         await pilot.press("enter")
         await pilot.pause(0.1)  # wait for overlay mount/focus
 
@@ -182,8 +184,8 @@ async def test_tui_overlay_keys():
         table = app.query_one(DataTable)
         app.set_focus(table)
         
-        # Test ESC for Memo column
-        table.move_cursor(row=0, column=5) # Memo
+        # Test ESC for Memo column (index 7)
+        table.move_cursor(row=0, column=7) # Memo
         await pilot.press("enter")
         await pilot.pause(0.1)
         

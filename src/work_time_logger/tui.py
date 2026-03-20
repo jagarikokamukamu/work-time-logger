@@ -91,7 +91,7 @@ class WtlApp(App):
             with Vertical(id="main-content"):
                 self.logs_table = LogsTable(cursor_type="cell")
                 self.logs_table.add_columns(
-                    "ID", "Project", "Job", "Start Time", "End Time", "Duration (h)", "Memo"
+                    "ID", "Project", "Job", "Date", "Start Time", "End Time", "Duration (h)", "Memo"
                 )
                 yield self.logs_table
         yield Footer()
@@ -126,27 +126,37 @@ class WtlApp(App):
         for log_entry in self.logs:
             p_name = log_entry["project_name"] or "[未割り当て]"
             j_name = log_entry["job_name"] or "[未割り当て]"
-            end_time = (
-                log_entry["end_time"][:19] if log_entry["end_time"] else "Running..."
-            )
+            
+            start_iso = log_entry["start_time"]
+            end_iso = log_entry["end_time"]
+            
+            log_date = start_iso[:10]
+            
+            def format_rel(iso_str):
+                if not iso_str: return "Running..."
+                dt = datetime.fromisoformat(iso_str)
+                base = datetime.fromisoformat(log_date + "T00:00:00")
+                diff = dt - base
+                secs = int(diff.total_seconds())
+                return f"{secs//3600:02}:{(secs%3600)//60:02}:{secs%60:02}"
+
+            start_disp = format_rel(start_iso)
+            end_disp = format_rel(end_iso)
             memo = log_entry["memo"] or ""
             duration_hours = log_entry["duration_hours"]
 
             if duration_hours is not None:
-                # duration_hours manually set: dim start/end with explicit subtle gray
-                dim_start = f"[#585858]{log_entry['start_time'][:19]}[/#585858]"
-                dim_end   = f"[#585858]{end_time}[/#585858]"
+                # duration_hours manually set: strike and dim start/end
+                dim_start = f"[strike][#585858]{start_disp}[/#585858][/strike]"
+                dim_end   = f"[strike][#585858]{end_disp}[/#585858][/strike]"
                 dur_str = str(duration_hours)
             else:
-                # Auto-calculate from start/end and display in a muted teal
-                # (similar luminance to default text, shifted hue — not eye-catching)
-                dim_start = log_entry["start_time"][:19]
-                dim_end   = end_time
+                dim_start = start_disp
+                dim_end   = end_disp
                 try:
-                    if log_entry["start_time"] and log_entry["end_time"]:
-                        from datetime import datetime
-                        s = datetime.fromisoformat(log_entry["start_time"])
-                        e = datetime.fromisoformat(log_entry["end_time"])
+                    if start_iso and end_iso:
+                        s = datetime.fromisoformat(start_iso)
+                        e = datetime.fromisoformat(end_iso)
                         calc = round((e - s).total_seconds() / 3600, 2)
                         dur_str = f"[#79a8a8]{calc}[/#79a8a8]"
                     else:
@@ -158,6 +168,7 @@ class WtlApp(App):
                 str(log_entry["id"]),
                 p_name,
                 j_name,
+                log_date,
                 dim_start,
                 dim_end,
                 dur_str,
