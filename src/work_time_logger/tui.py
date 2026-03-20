@@ -2,6 +2,7 @@
 
 import traceback
 from datetime import datetime
+from enum import IntEnum
 from functools import partial
 
 from textual import on
@@ -18,6 +19,19 @@ from textual.widgets import (
 
 from . import operations
 from .widgets import ConfirmDeleteModal, HelpModal, JobSelectionModal, OverlayInput
+
+
+class LogColumn(IntEnum):
+    """Enumeration of columns in the LogsTable."""
+
+    ID = 0
+    PROJECT = 1
+    JOB = 2
+    DATE = 3
+    START_TIME = 4
+    END_TIME = 5
+    DURATION = 6
+    MEMO = 7
 
 
 class ProjectsTree(Tree):
@@ -411,42 +425,51 @@ class WtlApp(App):
 
         col_index = event.coordinate.column
 
-        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo
-        if col_index in (1, 2):
+        if col_index in (LogColumn.PROJECT, LogColumn.JOB):
             callback = partial(self._update_job_for_log, log_entry)
             self.push_screen(JobSelectionModal(), callback)
-        elif col_index == 3:
+        elif col_index == LogColumn.DATE:
             # Date field
             value = log_entry["start_time"][:10] if log_entry["start_time"] else ""
-            self.show_edit_overlay(log_entry, 3, value, "date_only", event.coordinate)
-        elif col_index == 4:
+            self.show_edit_overlay(
+                log_entry, LogColumn.DATE, value, "date_only", event.coordinate
+            )
+        elif col_index == LogColumn.START_TIME:
             # Start Time field
             raw = log_entry["start_time"]
             if raw and len(raw) >= 19:
                 value = raw[11:16]  # HH:mm
             else:
                 value = raw or ""
-            self.show_edit_overlay(log_entry, 4, value, "time_only", event.coordinate)
-        elif col_index == 5:
+            self.show_edit_overlay(
+                log_entry, LogColumn.START_TIME, value, "time_only", event.coordinate
+            )
+        elif col_index == LogColumn.END_TIME:
             # End Time field
             raw = log_entry["end_time"]
             if raw and len(raw) >= 19:
                 value = raw[11:16]  # HH:mm
             else:
                 value = raw or ""
-            self.show_edit_overlay(log_entry, 5, value, "time_only", event.coordinate)
-        elif col_index == 6:
+            self.show_edit_overlay(
+                log_entry, LogColumn.END_TIME, value, "time_only", event.coordinate
+            )
+        elif col_index == LogColumn.DURATION:
             # Duration field
             value = (
                 str(log_entry["duration_hours"])
                 if log_entry["duration_hours"] is not None
                 else ""
             )
-            self.show_edit_overlay(log_entry, 6, value, "duration", event.coordinate)
-        elif col_index == 7:
+            self.show_edit_overlay(
+                log_entry, LogColumn.DURATION, value, "duration", event.coordinate
+            )
+        elif col_index == LogColumn.MEMO:
             # Memo field
             value = log_entry["memo"] or ""
-            self.show_edit_overlay(log_entry, 7, value, "memo", event.coordinate)
+            self.show_edit_overlay(
+                log_entry, LogColumn.MEMO, value, "memo", event.coordinate
+            )
 
     def show_edit_overlay(
         self, log_entry: dict, col_index: int, value: str, edit_mode: str, coordinate
@@ -554,20 +577,19 @@ class WtlApp(App):
             except Exception:
                 pass
 
-        # Columns: 0:ID, 1:Project, 2:Job, 3:Date, 4:Start Time, 5:End Time, 6:Duration (h), 7:Memo # noqa: E501
-        if self._editing_col_index == 3:
+        if self._editing_col_index == LogColumn.DATE:
             # Update date of start_time
             if len(val) == 10:
                 current_start = self._editing_log_entry["start_time"]
                 new_start = val + current_start[10:]
                 self._update_start_time(self._editing_log_entry, new_start)
-        elif self._editing_col_index == 4:
+        elif self._editing_col_index == LogColumn.START_TIME:
             # Start Time
             if len(val) == 5 and ":" in val:  # HH:mm
                 current_date = self._editing_log_entry["start_time"][:10]
                 val = f"{current_date}T{val}:00"
             self._update_start_time(self._editing_log_entry, val)
-        elif self._editing_col_index == 5:
+        elif self._editing_col_index == LogColumn.END_TIME:
             # End Time
             if len(val) == 5 and ":" in val:  # HH:mm
                 current_date = (
@@ -576,7 +598,7 @@ class WtlApp(App):
                 )[:10]
                 val = f"{current_date}T{val}:00"
             self._update_end_time(self._editing_log_entry, val)
-        elif self._editing_col_index == 6:
+        elif self._editing_col_index == LogColumn.DURATION:
             # duration_hours
             try:
                 duration = float(val) if val else None
@@ -584,7 +606,7 @@ class WtlApp(App):
                 self.notify("数値を入力してください (例: 2.5)", severity="error")
                 return
             self._commit_log_update(self._editing_log_entry, duration_hours=duration)
-        elif self._editing_col_index == 7:
+        elif self._editing_col_index == LogColumn.MEMO:
             # Memo
             self._update_memo(self._editing_log_entry, val)
 
