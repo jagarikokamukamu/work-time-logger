@@ -48,11 +48,11 @@ def complete_job_name(ctx: typer.Context, incomplete: str):
 
 @app.command("start")
 def start(
-    project_name: str = typer.Argument(
-        None, help="Name of the project", autocompletion=complete_project_name
+    project_name: str = typer.Option(
+        None, "--project", "-p", help="Name of the project", autocompletion=complete_project_name
     ),
-    job_name: str = typer.Argument(
-        None, help="Name of the job", autocompletion=complete_job_name
+    job_name: str = typer.Option(
+        None, "--job", "-j", help="Name of the job", autocompletion=complete_job_name
     ),
     unassigned: bool = typer.Option(
         False, "--unassigned", "-u", help="Start an unassigned timer"
@@ -98,7 +98,7 @@ def stop():
 
 @project_app.command("add")
 def add_project(
-    name: str = typer.Option(..., "--name", "-n", help="Name of the project"),
+    name: str = typer.Option(..., "--project", "-p", help="Name of the project"),
 ):
     """Add a new project."""
     try:
@@ -133,11 +133,11 @@ def delete_project(project_id: int):
 
 @job_app.command("add")
 def add_job(
-    name: str = typer.Option(..., "--name", "-n", help="Name of the job"),
+    name: str = typer.Option(..., "--job", "-j", help="Name of the job"),
     project_name: str = typer.Option(
         ...,
-        "--to",
-        "-t",
+        "--project",
+        "-p",
         help="Project to add the job to",
         autocompletion=complete_project_name,
     ),
@@ -176,9 +176,11 @@ def list_jobs(
 
 @job_app.command("delete")
 def delete_job(
-    name: str = typer.Argument(..., help="Name of the job"),
-    project_name: str = typer.Argument(
+    name: str = typer.Option(..., "--job", "-j", help="Name of the job"),
+    project_name: str = typer.Option(
         ...,
+        "--project",
+        "-p",
         help="Project the job belongs to",
         autocompletion=complete_project_name,
     ),
@@ -238,11 +240,11 @@ def delete_log(log_id: int = typer.Argument(..., help="ID of the log to delete")
 @log_app.command("assign")
 def assign(
     log_id: int = typer.Argument(..., help="ID of the log to edit"),
-    project_name: str = typer.Argument(
-        ..., help="Name of the project", autocompletion=complete_project_name
+    project_name: str = typer.Option(
+        ..., "--project", "-p", help="Name of the project", autocompletion=complete_project_name
     ),
-    job_name: str = typer.Argument(
-        ..., help="Name of the job", autocompletion=complete_job_name
+    job_name: str = typer.Option(
+        ..., "--job", "-j", help="Name of the job", autocompletion=complete_job_name
     ),
 ):
     """Assign a project and job to an existing log."""
@@ -284,7 +286,7 @@ def export_logs(
     profile: str = typer.Option(
         str(db.DB_DIR / "profile.toml"),
         "--profile",
-        "-p",
+        "-r",
         help="Path to the TOML export profile",
     ),
     out: str = typer.Option("report.csv", "--out", "-o", help="Output CSV file path"),
