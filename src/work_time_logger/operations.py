@@ -451,7 +451,7 @@ def update_log(
                 if e_dt < s_dt:
                     raise ValueError("End time cannot be before start time.")
         except ValueError as e:
-            raise ValueError(f"Invalid date/time format or value: {e}")
+            raise ValueError(f"Invalid date/time format or value: {e}") from e
 
         cursor.execute(
             """
