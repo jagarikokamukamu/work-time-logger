@@ -53,6 +53,7 @@ class JobSelectionModal(ModalScreen[tuple[str, str]]):
                 self.jobs.append((p["name"], j["name"]))
 
     def compose(self) -> ComposeResult:
+        """Compose the child widgets for the modal."""
         yield Container(
             Input(placeholder="Type to search for a job...", id="search"),
             OptionList(id="job-list"),
@@ -60,12 +61,15 @@ class JobSelectionModal(ModalScreen[tuple[str, str]]):
         )
 
     def on_mount(self) -> None:
+        """Mount handler to initialize the option list."""
         self.update_options("")
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle input change events to filter the job list."""
         self.update_options(event.value)
 
     def update_options(self, search_term: str) -> None:
+        """Filter the job options based on a search term."""
         option_list = self.query_one(OptionList)
         option_list.clear_options()
         term = search_term.lower()
@@ -75,12 +79,14 @@ class JobSelectionModal(ModalScreen[tuple[str, str]]):
                 option_list.add_option(Option(prompt=label, id=str(i)))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle selection of a job from the option list."""
         if event.option_id is not None:
             idx = int(event.option_id)
             selected_project, selected_job = self.jobs[idx]
             self.dismiss((selected_project, selected_job))
 
     def action_cancel(self) -> None:
+        """Dismiss the modal without selection."""
         self.dismiss(None)
 
 
@@ -120,6 +126,7 @@ class ConfirmDeleteModal(ModalScreen[bool]):
     ]
 
     def compose(self) -> ComposeResult:
+        """Compose the confirmation dialog widgets."""
         yield Container(
             Label("Are you sure you want to delete this log?", id="question"),
             Button("Yes (y)", variant="error", id="yes"),
@@ -128,15 +135,18 @@ class ConfirmDeleteModal(ModalScreen[bool]):
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events (Yes/No)."""
         if event.button.id == "yes":
             self.dismiss(True)
         else:
             self.dismiss(False)
 
     def action_yes(self) -> None:
+        """Action handler for 'Yes' response."""
         self.dismiss(True)
 
     def action_no(self) -> None:
+        """Action handler for 'No' response."""
         self.dismiss(False)
 
 
@@ -154,18 +164,21 @@ class OverlayInput(Input):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.edit_mode = "memo"  # "memo", "date_only", "time_only", "date" (legacy), "duration"
+        self.edit_mode = "memo"  # "memo", "date_only", "time_only", "duration"
         self.duration_step = 0.1
 
     def action_cancel(self) -> None:
+        """Dismiss and hide the overlay input."""
         self.can_focus = False
         self.styles.display = "none"
         self.app.query_one(DataTable).focus()
 
     def action_increment(self) -> None:
+        """Increment the current field value."""
         self._adjust_value(1)
 
     def action_decrement(self) -> None:
+        """Decrement the current field value."""
         self._adjust_value(-1)
 
     def _adjust_value(self, delta: int) -> None:
@@ -201,45 +214,48 @@ class OverlayInput(Input):
                         year -= 1
                     # Ensure day is valid for new month
                     import calendar
+
                     last_day = calendar.monthrange(year, month)[1]
                     dt = dt.replace(year=year, month=month, day=min(dt.day, last_day))
                 else:
                     dt += timedelta(days=delta)
                 self.value = dt.strftime("%Y-%m-%d")
-            
+
             elif self.edit_mode == "time_only":
                 # HH:mm:ss or YYYY-MM-DD HH:mm:ss
-                if "T" in val: val = val.replace("T", " ")
+                if "T" in val:
+                    val = val.replace("T", " ")
                 if " " in val:
                     # Parse full ISO
                     dt = datetime.fromisoformat(val)
-                    if cursor_pos <= 10: # Date part
+                    if cursor_pos <= 10:  # Date part
                         dt += timedelta(days=delta)
-                    elif cursor_pos <= 13: # HH
+                    elif cursor_pos <= 13:  # HH
                         dt += timedelta(hours=delta)
-                    elif cursor_pos <= 16: # mm
+                    elif cursor_pos <= 16:  # mm
                         dt += timedelta(minutes=delta)
-                    else: # ss
+                    else:  # ss
                         dt += timedelta(seconds=delta)
                     self.value = dt.isoformat(sep=" ")
                 else:
                     # Simple HH:mm
                     parts = val.split(":")
-                    if len(parts) != 2: return
+                    if len(parts) != 2:
+                        return
                     try:
                         h, m = int(parts[0]), int(parts[1])
                         if cursor_pos <= len(parts[0]):
                             h += delta
                         else:
                             m += delta
-                        
+
                         total_mins = h * 60 + m
                         total_mins = max(0, total_mins)
                         nh, nm = divmod(total_mins, 60)
                         self.value = f"{nh:02}:{nm:02}"
                     except ValueError:
                         pass
-            
+
             elif self.edit_mode == "duration":
                 # Float hours, increment by duration_step
                 try:
@@ -250,7 +266,7 @@ class OverlayInput(Input):
                 except ValueError:
                     pass
 
-            elif self.edit_mode == "date": # Legacy fallback
+            elif self.edit_mode == "date":  # Legacy fallback
                 dt = datetime.fromisoformat(val)
                 dt += timedelta(seconds=delta)
                 self.value = dt.isoformat(sep=" ")
@@ -284,6 +300,7 @@ class HelpModal(ModalScreen):
     """
 
     def compose(self) -> ComposeResult:
+        """Compose the help screen contents."""
         with Container(id="help-container"):
             yield Static("WTL Keyboard Shortcuts", classes="help-title")
             yield Static(
@@ -352,7 +369,9 @@ class ExportLogsModal(ModalScreen[tuple[str, str, str]]):
     ]
 
     def compose(self) -> ComposeResult:
+        """Compose the export dialog widgets."""
         from datetime import date
+
         yield Container(
             Label("Profile (.toml):", classes="export-label"),
             Input(value=str(db.DB_DIR / "profile.toml"), id="export-profile"),
@@ -360,12 +379,17 @@ class ExportLogsModal(ModalScreen[tuple[str, str, str]]):
             Input(value=date.today().isoformat(), id="export-date"),
             Label("Output CSV Path:", classes="export-label"),
             Input(value="report.csv", id="export-output"),
-            Button("Export", variant="success", id="btn-export", classes="dialog-buttons"),
-            Button("Cancel", variant="error", id="btn-cancel", classes="dialog-buttons"),
+            Button(
+                "Export", variant="success", id="btn-export", classes="dialog-buttons"
+            ),
+            Button(
+                "Cancel", variant="error", id="btn-cancel", classes="dialog-buttons"
+            ),
             id="export-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle export or cancel button presses."""
         if event.button.id == "btn-export":
             profile = self.query_one("#export-profile", Input).value.strip()
             output = self.query_one("#export-output", Input).value.strip()
@@ -376,6 +400,7 @@ class ExportLogsModal(ModalScreen[tuple[str, str, str]]):
             self.dismiss(None)
 
     def action_cancel(self) -> None:
+        """Dismiss the modal."""
         self.dismiss(None)
 
 
@@ -408,27 +433,35 @@ class DailySummaryModal(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
+        """Compose the summary screen widgets."""
         with Container(id="summary-container"):
             yield Static("Daily Work Summary", classes="summary-title")
             yield DataTable(id="summary-table")
 
     def on_mount(self) -> None:
+        """Mount handler to populate the summary table."""
         table = self.query_one(DataTable)
         table.add_columns("Date", "Project", "Job", "Hours", "Notes")
-        
+
         logs = operations.list_logs()
+
         # Sort by date, project, job for grouping
         def sort_key(log):
-            return (log["start_time"][:10], log["project_name"] or "", log["job_name"] or "")
-        
+            return (
+                log["start_time"][:10],
+                log["project_name"] or "",
+                log["job_name"] or "",
+            )
+
         logs_sorted = sorted(logs, key=sort_key, reverse=True)
-        
+
         from itertools import groupby
+
         for (day, proj, job), group in groupby(logs_sorted, key=sort_key):
             group_list = list(group)
             total_hours = 0.0
             notes = []
-            
+
             for log in group_list:
                 if log["duration_hours"] is not None:
                     h = log["duration_hours"]
@@ -441,17 +474,18 @@ class DailySummaryModal(ModalScreen):
                 total_hours += h
                 if log["memo"]:
                     notes.append(log["memo"])
-            
+
             unique_notes = []
             for n in notes:
-                if n not in unique_notes: unique_notes.append(n)
-            
+                if n not in unique_notes:
+                    unique_notes.append(n)
+
             table.add_row(
                 day,
                 proj or "[未割り当て]",
                 job or "[未割り当て]",
                 f"{total_hours:.2f}",
-                " / ".join(unique_notes)
+                " / ".join(unique_notes),
             )
         table.focus()
 
@@ -490,41 +524,58 @@ class FilterModal(ModalScreen):
         self.current_filters = current_filters
 
     def compose(self) -> ComposeResult:
+        """Compose the filter dialog widgets."""
         with Container(id="filter-container"):
             yield Static("Filter Logs", classes="summary-title")
-            
+
             yield Static("Project Name:", classes="filter-label")
-            yield Input(value=self.current_filters.get("project") or "", id="f-project", placeholder="None")
-            
+            yield Input(
+                value=self.current_filters.get("project") or "",
+                id="f-project",
+                placeholder="None",
+            )
+
             yield Static("Job Name:", classes="filter-label")
-            yield Input(value=self.current_filters.get("job") or "", id="f-job", placeholder="None")
-            
+            yield Input(
+                value=self.current_filters.get("job") or "",
+                id="f-job",
+                placeholder="None",
+            )
+
             yield Static("Start Date (YYYY-MM-DD):", classes="filter-label")
-            yield Input(value=self.current_filters.get("start") or "", id="f-start", placeholder="None")
-            
+            yield Input(
+                value=self.current_filters.get("start") or "",
+                id="f-start",
+                placeholder="None",
+            )
+
             yield Static("End Date (YYYY-MM-DD):", classes="filter-label")
-            yield Input(value=self.current_filters.get("end") or "", id="f-end", placeholder="None")
-            
+            yield Input(
+                value=self.current_filters.get("end") or "",
+                id="f-end",
+                placeholder="None",
+            )
+
             with Horizontal(classes="filter-buttons"):
-                yield Button("Clear", id="btn-clear", variant="error", classes="filter-btn")
+                yield Button(
+                    "Clear", id="btn-clear", variant="error", classes="filter-btn"
+                )
                 yield Button("Cancel", id="btn-cancel", classes="filter-btn")
-                yield Button("Apply", id="btn-apply", variant="primary", classes="filter-btn")
+                yield Button(
+                    "Apply", id="btn-apply", variant="primary", classes="filter-btn"
+                )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle filter dialog button presses."""
         if event.button.id == "btn-cancel":
             self.dismiss(None)
         elif event.button.id == "btn-clear":
-            self.dismiss({
-                "project": None,
-                "job": None,
-                "start": None,
-                "end": None
-            })
+            self.dismiss({"project": None, "job": None, "start": None, "end": None})
         elif event.button.id == "btn-apply":
             res = {
                 "project": self.query_one("#f-project", Input).value.strip() or None,
                 "job": self.query_one("#f-job", Input).value.strip() or None,
                 "start": self.query_one("#f-start", Input).value.strip() or None,
-                "end": self.query_one("#f-end", Input).value.strip() or None
+                "end": self.query_one("#f-end", Input).value.strip() or None,
             }
             self.dismiss(res)

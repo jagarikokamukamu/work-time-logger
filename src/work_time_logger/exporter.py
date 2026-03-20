@@ -75,7 +75,8 @@ time_precision = 2
 time_rounding = "round"
 
 [export.format]
-# Jinja2 template for each note item. Variables: all extracted fields + memo, time_hours, project_name, job_name
+# Jinja2 template for each note item. Variables: all extracted fields + memo,
+# time_hours, project_name, job_name
 note_item = "[{{ project_name }}/{{ job_name }}] {{ time_hours }}h: {{ memo }}"
 note_separator = " / "
 
@@ -115,7 +116,6 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     Returns:
         int: The number of aggregated rows exported.
     """
-
     if not os.path.exists(profile_path):
         with open(profile_path, "w", encoding="utf-8") as f:
             f.write(DEFAULT_PROFILE_TEMPLATE)
@@ -204,7 +204,7 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
 
     aggregated_results = []
 
-    for key_tuple, group_iter in groupby(extracted_data, key=group_key_func):
+    for _, group_iter in groupby(extracted_data, key=group_key_func):
         group_items = list(group_iter)
 
         total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
@@ -263,4 +263,3 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         writer.writerows(aggregated_results)
 
     return len(aggregated_results)
-
