@@ -40,7 +40,9 @@ def test_add_project_and_job():
     assert projects[0]["name"] == "Test Project"
 
     # Test Adding a Job
-    job_id = operations.add_job("Test Job", "Test Project", "A description", "JOB_CODE_01")
+    job_id = operations.add_job(
+        "Test Job", "Test Project", "A description", "JOB_CODE_01"
+    )
     assert job_id == 1
 
     jobs = operations.list_jobs("Test Project")
@@ -143,7 +145,7 @@ def test_create_assigned_log(setup_test_db):
     operations.add_project("Proj")
     operations.add_job("Job", "Proj")
     operations.create_assigned_log("Proj", "Job")
-    
+
     logs = operations.list_logs()
     assert len(logs) == 1
     assert logs[0]["project_name"] == "Proj"
@@ -152,21 +154,28 @@ def test_create_assigned_log(setup_test_db):
 
 
 def test_update_log_preserves_duration(setup_test_db):
-    """Test that updating a log (e.g., memo) does not reset manually entered duration."""
+    """Test that updating a log (e.g., memo) does not
+    reset manually entered duration."""
     operations.add_project("P")
     operations.add_job("J", "P")
     operations.start_log("P", "J")
     operations.stop_log()
-    
+
     logs = operations.list_logs()
     log_id = logs[0]["id"]
-    
+
     # Set manual duration
-    operations.update_log(log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"], duration_hours=5.5)
-    
+    operations.update_log(
+        log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"],
+        duration_hours=5.5
+    )
+
     # Update memo only
-    operations.update_log(log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"], memo="Updated Memo")
-    
+    operations.update_log(
+        log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"],
+        memo="Updated Memo"
+    )
+
     # Check if duration is still 5.5
     updated_logs = operations.list_logs()
     assert updated_logs[0]["duration_hours"] == 5.5
