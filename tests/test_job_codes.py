@@ -1,10 +1,7 @@
-import os
-import tomllib
-
 import pytest
 from typer.testing import CliRunner
 
-from work_time_logger import db, operations
+from work_time_logger import operations
 from work_time_logger.cli import app
 
 runner = CliRunner()
@@ -26,12 +23,12 @@ def test_job_list_codes():
 
     try:
         operations.add_project(project_name)
-    except:
+    except Exception:
         pass  # Already exists
 
     try:
         operations.add_job(job_name, project_name, code=job_code)
-    except:
+    except Exception:
         pass  # Already exists
 
     # Run command
