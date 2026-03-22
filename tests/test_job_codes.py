@@ -1,38 +1,65 @@
 import pytest
 from typer.testing import CliRunner
 
-from work_time_logger import operations
+from work_time_logger import db, operations
 from work_time_logger.cli import app
 
 runner = CliRunner()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def setup_db(tmp_path):
-    # Mock DB_DIR if needed, but here we can just use the real db for integration test
-    # or rely on the fact that operations use get_connection.
-    # For safety, we can just use the current env but clean up.
-    pass
+    """Override symbols in the db module to use a temporary directory for tests"""
+    test_db_dir = tmp_path / ".wtl_test"
+    test_db_dir.mkdir()
+    test_db_path = test_db_dir / "test_db.sqlite3"
+
+    original_db_dir = db.DB_DIR
+    original_db_path = db.DB_PATH
+
+    db.DB_DIR = test_db_dir
+    db.DB_PATH = test_db_path
+
+    # Initialize the test database
+    db.init_db()
+
+    yield tmp_path
+
+    # Cleanup: restore original paths
+    db.DB_DIR = original_db_dir
+    db.DB_PATH = original_db_path
 
 
-def test_job_list_codes():
+def test_job_list_codes(setup_db):
+    tmp_path = setup_db
     # Setup: Add project and job
     project_name = "TestProj"
     job_name = "TestJob"
     job_code = "123_456_BURDEN_CONTENT_PRE_BIKOU"
 
-    try:
-        operations.add_project(project_name)
-    except Exception:
-        pass  # Already exists
+    operations.add_project(project_name)
+    operations.add_job(job_name, project_name, code=job_code)
 
-    try:
-        operations.add_job(job_name, project_name, code=job_code)
-    except Exception:
-        pass  # Already exists
+    # Create a temporary profile for list-codes
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text("""
+[export.extract]
+job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_\
+(?P<prefix>[a-zA-Z]+)_(?P<desc>.*)"
+
+[export.columns]
+"proj" = "{{ proj }}"
+"sub" = "{{ sub }}"
+"cost" = "{{ cost }}"
+"prefix" = "{{ prefix }}"
+"desc" = "{{ desc }}"
+""")
 
     # Run command
-    result = runner.invoke(app, ["job", "list", "--codes", "--project", project_name])
+    result = runner.invoke(app, [
+        "job", "list", "--codes", "--project", project_name,
+        "--profile", str(profile_path)
+    ])
 
     assert result.exit_code == 0
     # Check if key values are in output
@@ -44,4 +71,4 @@ def test_job_list_codes():
 
 
 if __name__ == "__main__":
-    test_job_list_codes()
+    pytest.main([__file__])
