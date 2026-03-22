@@ -227,8 +227,10 @@ async def test_tui_arrow_key_adjustment():
         await pilot.press("enter")
         await pilot.pause(0.1)
         assert overlay.edit_mode == "time_only"
-        # Since it's formatted as HH:mm:ss, but the original empty log might have "" or full ISO
-        # Empty log has start_time set to current time in operations.create_empty_log()
+        # Since it's formatted as HH:mm:ss, but the original empty log
+        # might have "" or full ISO
+        # Empty log has start_time set to current time
+        # in operations.create_empty_log()
         assert len(overlay.value) == 5  # HH:mm
         await pilot.press("escape")
 

@@ -71,11 +71,25 @@ def test_job_import(tmp_path):
     csv_file = tmp_path / "jobs.csv"
     csv_file.write_text("name,description\nJob1,Desc1\nJob2,Desc2")
 
-    # Use a minimal profile so the user's ~/.wtl/profile.toml import.mapping doesn't interfere
+    # Use a minimal profile so the user's profile.toml
+    # mapping doesn't interfere
     profile_file = tmp_path / "profile.toml"
-    profile_file.write_text("[import.mapping]\nname = \"{{ name }}\"\ndescription = \"{{ description }}\"\n")
+    profile_file.write_text(
+        '[import.mapping]\nname = "{{ name }}"\ndescription = "{{ description }}"\n'
+    )
 
-    result = runner.invoke(cli.app, ["job", "import", str(csv_file), "-p", "Import Project", "-r", str(profile_file)])
+    result = runner.invoke(
+        cli.app,
+        [
+            "job",
+            "import",
+            str(csv_file),
+            "-p",
+            "Import Project",
+            "-r",
+            str(profile_file),
+        ],
+    )
     assert result.exit_code == 0
     assert "Imported 2 jobs" in result.stdout
 
@@ -88,7 +102,7 @@ def test_log_delete():
     # Make a manual log
     runner.invoke(cli.app, ["start", "--unassigned"])
     runner.invoke(cli.app, ["stop"])
-    
+
     # Use the id of the first log returned
     logs = operations.list_logs()
     log_id = str(logs[0]["id"])
@@ -97,23 +111,32 @@ def test_log_delete():
     assert result.exit_code == 0
     assert f"Deleted log {log_id}" in result.stdout
 
+
 def test_log_assign():
     # Setup
     runner.invoke(cli.app, ["project", "add", "-p", "Proj A"])
     runner.invoke(cli.app, ["job", "add", "-j", "Job A", "-p", "Proj A"])
     runner.invoke(cli.app, ["start", "--unassigned"])
     runner.invoke(cli.app, ["stop"])
-    
+
     logs = operations.list_logs()
     log_id = str(logs[0]["id"])
 
-    result = runner.invoke(cli.app, ["log", "assign", log_id, "-p", "Proj A", "-j", "Job A"])
+    result = runner.invoke(
+        cli.app, ["log", "assign", log_id, "-p", "Proj A", "-j", "Job A"]
+    )
     assert result.exit_code == 0
-    assert f"Assigned log ID {log_id}" in result.stdout or f"assigned Log ID {log_id}" in result.stdout
+    assert (
+        f"Assigned log ID {log_id}" in result.stdout
+        or f"assigned Log ID {log_id}" in result.stdout
+    )
+
 
 def test_job_delete():
     runner.invoke(cli.app, ["project", "add", "-p", "Del Proj"])
     runner.invoke(cli.app, ["job", "add", "-j", "Del Job", "-p", "Del Proj"])
-    result = runner.invoke(cli.app, ["job", "delete", "-j", "Del Job", "-p", "Del Proj"])
+    result = runner.invoke(
+        cli.app, ["job", "delete", "-j", "Del Job", "-p", "Del Proj"]
+    )
     assert result.exit_code == 0
     assert "Deleted job" in result.stdout

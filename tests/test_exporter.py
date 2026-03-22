@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -11,7 +10,7 @@ def setup_test_db(tmp_path: Path):
     test_db_dir = tmp_path / ".wtl_test"
     test_db_dir.mkdir()
     test_db_path = test_db_dir / "test_db.sqlite3"
-    
+
     original_db_dir = db.DB_DIR
     original_db_path = db.DB_PATH
 
@@ -27,37 +26,50 @@ def setup_test_db(tmp_path: Path):
 
 def test_export_logic(tmp_path: Path):
     # Setup test data
-    pid = operations.add_project("Project1")
+    operations.add_project("Project1")
     # Code matches the generic regex
     operations.add_job("Job1", "Project1", "desc1", "ABCD123_1000_XXX_PRE_Meeting")
     operations.add_job("Job2", "Project1", "desc2", "ABCD123_1000_XXX_PRE_Progress")
     operations.add_job("Job3", "Project1", "desc2", "ABCD123_2000_XXX_DEV_DesignDoc")
-    
-    pid2 = operations.add_project("Project2")
+
+    operations.add_project("Project2")
     operations.add_job("Job4", "Project2", "desc", "ABCD456_10_XXX_PRE_Meeting")
 
     # Log 1: Job1 (1.1 hours)
     log_id1 = operations.create_empty_log()
-    operations.update_log(log_id1, "Project1", "Job1", "2024-01-01T10:00:00", "2024-01-01T11:06:00", "First meeting")
-    
+    operations.update_log(
+        log_id1, "Project1", "Job1", "2024-01-01T10:00:00",
+        "2024-01-01T11:06:00", "First meeting"
+    )
+
     # Log 2: Job2 (2.1 hours)
     log_id2 = operations.create_empty_log()
-    operations.update_log(log_id2, "Project1", "Job2", "2024-01-01T13:00:00", "2024-01-01T15:06:00", "Status update")
+    operations.update_log(
+        log_id2, "Project1", "Job2", "2024-01-01T13:00:00",
+        "2024-01-01T15:06:00", "Status update"
+    )
 
     # Log 3: Job3 (1.2 hours)
     log_id3 = operations.create_empty_log()
-    operations.update_log(log_id3, "Project1", "Job3", "2024-01-02T10:00:00", "2024-01-02T11:12:00", "Writing docs")
+    operations.update_log(
+        log_id3, "Project1", "Job3", "2024-01-02T10:00:00",
+        "2024-01-02T11:12:00", "Writing docs"
+    )
 
     # Log 4: Job4 (1.4 hours)
     log_id4 = operations.create_empty_log()
-    operations.update_log(log_id4, "Project2", "Job4", "2024-01-03T10:00:00", "2024-01-03T11:24:00", "Kickoff")
-    
+    operations.update_log(
+        log_id4, "Project2", "Job4", "2024-01-03T10:00:00",
+        "2024-01-03T11:24:00", "Kickoff"
+    )
+
     # Create export profile
     profile_path = tmp_path / "profile.toml"
     with open(profile_path, "w", encoding="utf-8") as f:
         f.write('''
 [export.extract]
-job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_(?P<prefix>[a-zA-Z]+)_(?P<desc>.*)"
+job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_\
+(?P<prefix>[a-zA-Z]+)_(?P<desc>.*)"
 
 [export.defaults]
 "load" = "1"
@@ -91,25 +103,29 @@ note_separator = "/"
 "time_col" = "{{ aggregated_time }}"
 "note_col" = "{{ aggregated_notes }}"
         ''')
-        
+
     output_path = tmp_path / "output.csv"
-    
+
     count = exporter.export_logs(str(profile_path), str(output_path), target_date=None)
     assert count == 3
-    
-    with open(output_path, "r", encoding="utf-8") as f:
+
+    with open(output_path, encoding="utf-8") as f:
         content = f.read()
-        
+
     assert "3.2" in content
     # Look for both orders since grouping output order might not be guaranteed
-    assert "(PRE:1.1):Meeting/(PRE:2.1):Progress" in content or "(PRE:2.1):Progress/(PRE:1.1):Meeting" in content
+    assert (
+        "(PRE:1.1):Meeting/(PRE:2.1):Progress" in content
+        or "(PRE:2.1):Progress/(PRE:1.1):Meeting" in content
+    )
 
 
 def test_time_precision_and_rounding(tmp_path: Path):
     """time_precision and time_rounding should affect aggregated_time correctly."""
     operations.add_project("PrecProject")
     # duration_hours=2.16: has 2 decimal places, so precision=1 will actually round it
-    # As a float, 2.16 ≈ 2.1599..., which is > 2.15, so round(2.16, 1) = 2.2 deterministically
+    # As a float, 2.16 ≈ 2.1599..., which is > 2.15,
+    # so round(2.16, 1) = 2.2 deterministically
     operations.add_job("JobA", "PrecProject", code="T-001")
     log_id = operations.create_empty_log()
     operations.update_log(
@@ -147,7 +163,8 @@ note_separator = "/"
         return float(data_row.split(",")[0])
 
     def get_note_col(content: str) -> float:
-        """Extract the 'note' column (time_hours in note_item) from the first data row."""
+        """Extract the 'note' column (time_hours in note_item)
+        from the first data row."""
         data_row = content.strip().split("\n")[1]
         return float(data_row.split(",")[1])
 
@@ -162,7 +179,3 @@ note_separator = "/"
 
     # precision=0, ceil -> 2.16 ceils to 3
     assert get_time_col(run_export(0, "ceil")) == 3.0
-
-
-
-
