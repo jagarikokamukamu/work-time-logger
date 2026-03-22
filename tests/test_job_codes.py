@@ -62,9 +62,9 @@ job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_\
     ])
 
     assert result.exit_code == 0
-    # Check if key values are in output
+    # Check if key values are in output (from job code expansion)
     assert "123" in result.stdout
-    assert "TestProj" in result.stdout
+    assert "TestJob" in result.stdout
     assert "456" in result.stdout
     assert "BURDEN" in result.stdout
     assert "CONTENT" in result.stdout
