@@ -546,7 +546,7 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
         cursor.execute(
             "INSERT INTO logs (project_id, job_id, start_time, end_time, "
             "duration_hours) VALUES (?, ?, ?, ?, ?)",
-            (p_id, j_id, now, now, 0.0),
+            (p_id, j_id, now, now, None),
         )
         conn.commit()
         return cursor.lastrowid
