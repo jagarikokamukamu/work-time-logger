@@ -150,7 +150,7 @@ def test_create_assigned_log(setup_test_db):
     assert len(logs) == 1
     assert logs[0]["project_name"] == "Proj"
     assert logs[0]["job_name"] == "Job"
-    assert logs[0]["duration_hours"] == 0.0
+    assert logs[0]["duration_hours"] is None
 
 
 def test_update_log_preserves_duration(setup_test_db):

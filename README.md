@@ -33,7 +33,12 @@ Work Time Logger は、TUIベースの作業時間記録ツールです。
 # 1. 新しいプロジェクトを追加
 wtl project add -n "Example Project"
 
-# 2. TUIを起動して作業をトラッキング
+# 2. ジョブを追加
+wtl job add -p "Example Project" -j "Example Job 1" -c "CODE-001"
+wtl job add -p "Example Project" -j "Example Job 2" -c "CODE-002"
+wtl job add -p "Example Project" -j "Example Job 3" -c "CODE-003"
+
+# 3. TUIを起動して作業をトラッキング
 wtlui
 ```
 

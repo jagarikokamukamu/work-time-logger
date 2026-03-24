@@ -103,6 +103,15 @@
           ],
           "default": "round"
         },
+        "time_aggregation_method": {
+          "type": "string",
+          "description": "Aggregation method for times within a group: 'sum_then_round' sums all raw times before rounding, 'round_then_sum' rounds each entry before summing.",
+          "enum": [
+            "sum_then_round",
+            "round_then_sum"
+          ],
+          "default": "sum_then_round"
+        },
         "format": {
           "type": "object",
           "additionalProperties": false,

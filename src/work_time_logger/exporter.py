@@ -73,6 +73,8 @@ group_by = ["type", "ticket"]
 # Aggregated time precision and rounding: "round", "floor", or "ceil"
 time_precision = 2
 time_rounding = "round"
+# Aggregation method: "sum_then_round" (default) or "round_then_sum"
+time_aggregation_method = "sum_then_round"
 
 [export.format]
 # Jinja2 template for each note item. Variables: all extracted fields + memo,
@@ -205,6 +207,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     columns_config = export_config.get("columns", {})
     time_precision = export_config.get("time_precision", 2)
     time_rounding = export_config.get("time_rounding", "round")
+    time_aggregation_method = export_config.get(
+        "time_aggregation_method", "sum_then_round"
+    )
 
     logs = operations.list_logs()
 
@@ -260,9 +265,21 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     for _, group_iter in groupby(extracted_data, key=group_key_func):
         group_items = list(group_iter)
 
-        total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
-
-        agg_time = _apply_rounding(total_time, time_precision, time_rounding)
+        if time_aggregation_method == "round_then_sum":
+            # Round each individual log entry's time before summing
+            agg_time = sum(
+                _apply_rounding(
+                    item.get("_raw_time_hours", 0.0), time_precision, time_rounding
+                )
+                for item in group_items
+            )
+            # Ensure the final sum also respects precision
+            # (though it should already be a multiple of the precision)
+            agg_time = _apply_rounding(agg_time, time_precision, time_rounding)
+        else:
+            # Traditional: sum all raw times, then round the total
+            total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
+            agg_time = _apply_rounding(total_time, time_precision, time_rounding)
 
         # Sub-group by all fields to aggregate times for identical notes
         sub_groups = {}
