@@ -179,3 +179,46 @@ note_separator = "/"
 
     # precision=0, ceil -> 2.16 ceils to 3
     assert get_time_col(run_export(0, "ceil")) == 3.0
+
+
+def test_time_aggregation_method(tmp_path: Path):
+    """Test sum_then_round vs round_then_sum methods."""
+    operations.add_project("AggProject")
+    operations.add_job("Job1", "AggProject", code="T-001")
+
+    # Add two logs: 1.16 + 1.16 = 2.32
+    # Rounding to precision=1:
+    # sum_then_round: round(2.32, 1) = 2.3
+    # round_then_sum: round(1.16, 1) + round(1.16, 1) = 1.2 + 1.2 = 2.4
+
+    for _ in range(2):
+        lid = operations.create_empty_log()
+        operations.update_log(
+            lid, "AggProject", "Job1",
+            "2024-03-01T10:00:00", "2024-03-01T10:00:00",
+            duration_hours=1.16
+        )
+
+    profile_path = tmp_path / "profile.toml"
+
+    def run_export_method(method: str) -> float:
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(f"""
+[export.extract]
+job_code = "^(?P<kind>[A-Z]+)-(?P<num>\\\\d+)$"
+[export]
+group_by = ["kind"]
+time_precision = 1
+time_rounding = "round"
+time_aggregation_method = "{method}"
+[export.columns]
+"time" = "{{{{ aggregated_time }}}}"
+""")
+        out = tmp_path / f"out_{method}.csv"
+        exporter.export_logs(str(profile_path), str(out), target_date=None)
+        content = out.read_text(encoding="utf-8")
+        data_row = content.strip().split("\n")[1]
+        return float(data_row.split(",")[0])
+
+    assert run_export_method("sum_then_round") == 2.3
+    assert run_export_method("round_then_sum") == 2.4
