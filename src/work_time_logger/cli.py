@@ -25,6 +25,9 @@ app.add_typer(job_app, name="job")
 log_app = typer.Typer(help="Manage logs: assign, list, delete, or export logs.")
 app.add_typer(log_app, name="log")
 
+profile_app = typer.Typer(help="Manage profile configuration.")
+app.add_typer(profile_app, name="profile")
+
 
 # --- Autocompletion Functions ---
 def complete_project_name(incomplete: str):
@@ -471,3 +474,41 @@ def export_logs(
             console.print("[yellow]No logs matched or exported.[/yellow]")
     except Exception as e:
         console.print(f"[red]Error exporting logs: {e}[/red]")
+
+
+# --- Profile Commands ---
+
+
+@profile_app.command("open")
+def open_profile():
+    """Open the profile.toml file in the default system editor.
+
+    Ensures the profile exists (creating a default one if necessary) and then
+    launches the default system application associated with TOML files.
+    """
+    import os
+    import subprocess
+    import sys
+
+    from . import exporter
+
+    profile_path = db.DB_DIR / "profile.toml"
+
+    # Ensure it exists
+    try:
+        exporter.load_profile(str(profile_path))
+    except Exception as e:
+        console.print(f"[red]Error ensuring profile exists: {e}[/red]")
+        return
+
+    console.print(f"Opening [bold]{profile_path}[/bold]...")
+    try:
+        if os.name == "nt":
+            os.startfile(profile_path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(profile_path)], check=True)
+        else:
+            # Linux/Others
+            subprocess.run(["xdg-open", str(profile_path)], check=True)
+    except Exception as e:
+        console.print(f"[red]Error opening profile: {e}[/red]")
