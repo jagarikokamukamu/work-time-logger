@@ -230,11 +230,21 @@ class WtlApp(App):
             cursor_coord = None
             scroll_x, scroll_y = 0, 0
 
+        # Preserve expanded state of project nodes
+        # If the tree is empty (initial load), we'll default to expanding everything.
+        is_initial_load = not any(self.projects_tree.root.children)
+        expanded_projects = {
+            str(node.label)
+            for node in self.projects_tree.root.children
+            if node.is_expanded
+        }
+
         # Populate Projects and Jobs tree
         self.projects_tree.clear()
         projects = operations.list_projects()
         for p in projects:
-            p_node = self.projects_tree.root.add(p["name"], expand=True)
+            should_expand = is_initial_load or (p["name"] in expanded_projects)
+            p_node = self.projects_tree.root.add(p["name"], expand=should_expand)
             jobs = operations.list_jobs(p["name"])
             for j in jobs:
                 p_node.add_leaf(j["name"])
