@@ -8,7 +8,7 @@
 以下のコマンドを実行すると、設定ファイルが（存在しない場合は作成された上で）システムのデフォルトエディタで開かれます。
 
 ```bash
-uv run wtl profile open
+wtl profile open
 ```
 
 > [!TIP]
@@ -40,10 +40,10 @@ Document API,Writing API docs for new endpoint,DOC,055
 
 ```bash
 # プロジェクトの作成
-uv run wtl project add -p "Example Project"
+wtl project add -p "Example Project"
 
 # プロファイル（雛形）を利用したCSVのインポート
-uv run wtl job import docs/sample-jobs.csv -p "Example Project"
+wtl job import docs/sample-jobs.csv -p "Example Project"
 ```
 
 これにより、「Fix Database」ジョブの `job_code` の値は自動的に `"DEV-001"` として取り込まれます。  
@@ -54,7 +54,7 @@ uv run wtl job import docs/sample-jobs.csv -p "Example Project"
 ジョブがインポートできたら、さっそく TUI を起動して作業時間を記録してみましょう。
 
 ```bash
-uv run wtlui
+wtlui
 ```
 
 ### 便利な操作方法・ショートカット
