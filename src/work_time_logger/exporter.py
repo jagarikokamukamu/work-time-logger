@@ -295,15 +295,26 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
             if sub_key not in sub_groups:
                 sub_groups[sub_key] = item.copy()
                 sub_groups[sub_key]["_raw_time_hours"] = 0.0
+                sub_groups[sub_key]["_sum_of_rounded_hours"] = 0.0
             sub_groups[sub_key]["_raw_time_hours"] += item["_raw_time_hours"]
+            sub_groups[sub_key]["_sum_of_rounded_hours"] += _apply_rounding(
+                item["_raw_time_hours"], time_precision, time_rounding
+            )
 
         # Aggregate notes using Jinja2
         notes = []
         for sub_item in sub_groups.values():
             # Calc rounded time for this sub-item for use in template
-            sub_item["time_hours"] = _apply_rounding(
-                sub_item["_raw_time_hours"], time_precision, time_rounding
-            )
+            if time_aggregation_method == "round_then_sum":
+                # Matches the total aggregation logic: sum of individually rounded times
+                sub_item["time_hours"] = _apply_rounding(
+                    sub_item["_sum_of_rounded_hours"], time_precision, time_rounding
+                )
+            else:
+                # Matches sum_then_round logic: sum raw, then round
+                sub_item["time_hours"] = _apply_rounding(
+                    sub_item["_raw_time_hours"], time_precision, time_rounding
+                )
             if note_item_template:
                 rendered = _render(note_item_template, sub_item)
                 if rendered:
