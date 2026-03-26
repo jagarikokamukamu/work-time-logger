@@ -181,11 +181,11 @@ def aggregate_logs(
 
     Args:
         profile_path (str): Path to the TOML profile file.
-        target_date (str | None, optional): Date string in YYYY-MM-DD format. Defaults to None.
-        group_by_date (bool, optional): If True, aggregates logs by date as well. Defaults to False.
+        target_date (str | None): Optional date filter (YYYY-MM-DD).
+        group_by_date (bool): Whether to include date in aggregation.
 
     Returns:
-        tuple[dict, list[dict]]: (columns_config, list of rendered rows)
+        tuple[dict, list[dict]]: (columns_config, rendered_results)
     """
     profile = load_profile(profile_path)
     export_config = profile.get("export", {})
@@ -287,7 +287,11 @@ def aggregate_logs(
                 sorted(
                     (k, str(v))
                     for k, v in item.items()
-                    if k not in ("_raw_time_hours", "time_hours", "_sum_of_rounded_hours")
+                    if k not in (
+                        "_raw_time_hours",
+                        "time_hours",
+                        "_sum_of_rounded_hours",
+                    )
                 )
             )
             if sub_key not in sub_groups:

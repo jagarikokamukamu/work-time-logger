@@ -553,32 +553,61 @@ class WtlApp(App):
                 self.notify("Format must be YYYY-MM-DD", severity="error")
                 return
         elif inp.edit_mode == "time_only":
-            # HH:mm or full ISO
-            try:
-                if " " in val:
-                    val = val.replace(" ", "T")
-                if len(val) == 5 and ":" in val:  # HH:mm
-                    # Check if valid time
-                    try:
-                        h, m = map(int, val.split(":"))
-                        if not (0 <= h < 24 and 0 <= m < 60):
-                            raise ValueError("Invalid time values.")
-                    except ValueError:
-                        raise ValueError("Format must be HH:mm (e.g. 09:30)") from None
-                else:
-                    # Try full iso parse
-                    datetime.fromisoformat(val)
-            except ValueError as e:
-                self.notify(f"Invalid time: {e}", severity="error")
+            # Smart parsing for time input: HH:mm, H:mm, H:m, HHMM, or H
+            import re
+
+            def parse_smart_time(s: str) -> str | None:
+                """Parse common time input strings into HH:mm."""
+                s = s.strip().replace(".", ":")
+                # Handle H:M or HH:MM
+                m_sep = re.match(r"^(\d{1,2}):(\d{1,2})$", s)
+                if m_sep:
+                    h, mn = int(m_sep.group(1)), int(m_sep.group(2))
+                    if 0 <= h < 24 and 0 <= mn < 60:
+                        return f"{h:02}:{mn:02}"
+                    return None
+
+                # Handle HMM or HHMM
+                m_num = re.match(r"^(\d{3,4})$", s)
+                if m_num:
+                    sn = m_num.group(1)
+                    if len(sn) == 3:
+                        h, mn = int(sn[0]), int(sn[1:])
+                    else:
+                        h, mn = int(sn[:2]), int(sn[2:])
+                    if 0 <= h < 24 and 0 <= mn < 60:
+                        return f"{h:02}:{mn:02}"
+                    return None
+
+                # Handle H or HH
+                m_h = re.match(r"^(\d{1,2})$", s)
+                if m_h:
+                    h = int(m_h.group(1))
+                    if 0 <= h < 24:
+                        return f"{h:02}:00"
+                    return None
+
+                # Fallback: Try full ISO parse
+                try:
+                    dt = datetime.fromisoformat(s.replace(" ", "T"))
+                    return dt.strftime("%H:%M")
+                except ValueError:
+                    return None
+
+            smart_val = parse_smart_time(val)
+            if smart_val is None:
+                self.notify(
+                    "Error: Invalid time format. Examples: 09:30, 9:30, 9:5, 0905, 18",
+                    severity="error",
+                )
                 return
+
+            val = smart_val
 
             # Cross-validation: start <= end
             current_log = self._editing_log_entry
-            new_val = val
-            if len(val) == 5:
-                # Need date to compare
-                dt_part = (current_log["end_time"] or current_log["start_time"])[:10]
-                new_val = f"{dt_part}T{val}:00"
+            log_ref = current_log["end_time"] or current_log["start_time"]
+            new_val = f"{log_ref[:10]}T{val}:00"
 
             try:
                 if self._editing_col_index == 4:  # Start Time
