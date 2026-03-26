@@ -441,53 +441,30 @@ class DailySummaryModal(ModalScreen):
 
     def on_mount(self) -> None:
         """Mount handler to populate the summary table."""
+        from . import exporter
+        
         table = self.query_one(DataTable)
-        table.add_columns("Date", "Project", "Job", "Hours", "Notes")
-
-        logs = operations.list_logs()
-
-        # Sort by date, project, job for grouping
-        def sort_key(log):
-            return (
-                log["start_time"][:10],
-                log["project_name"] or "",
-                log["job_name"] or "",
+        
+        try:
+            profile_path = str(db.DB_DIR / "profile.toml")
+            columns_config, aggregated_results = exporter.aggregate_logs(
+                profile_path, target_date=None, group_by_date=True
             )
-
-        logs_sorted = sorted(logs, key=sort_key, reverse=True)
-
-        from itertools import groupby
-
-        for (day, proj, job), group in groupby(logs_sorted, key=sort_key):
-            group_list = list(group)
-            total_hours = 0.0
-            notes = []
-
-            for log in group_list:
-                if log["duration_hours"] is not None:
-                    h = log["duration_hours"]
-                elif log["start_time"] and log["end_time"]:
-                    s = datetime.fromisoformat(log["start_time"])
-                    e = datetime.fromisoformat(log["end_time"])
-                    h = (e - s).total_seconds() / 3600.0
-                else:
-                    h = 0.0
-                total_hours += h
-                if log["memo"]:
-                    notes.append(log["memo"])
-
-            unique_notes = []
-            for n in notes:
-                if n not in unique_notes:
-                    unique_notes.append(n)
-
-            table.add_row(
-                day,
-                proj or "[未割り当て]",
-                job or "[未割り当て]",
-                f"{total_hours:.2f}",
-                " / ".join(unique_notes),
-            )
+            
+            # Setup columns: Date + configured CSV columns
+            col_names = ["Date"] + list(columns_config.keys())
+            table.add_columns(*col_names)
+            
+            for row in aggregated_results:
+                row_values = [row.get("_date", "")]
+                for col in columns_config.keys():
+                    row_values.append(str(row.get(col, "")))
+                table.add_row(*row_values)
+                
+        except Exception as e:
+            table.add_columns("Error")
+            table.add_row(f"Failed to load summary: {e}")
+            
         table.focus()
 
 

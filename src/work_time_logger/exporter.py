@@ -174,26 +174,18 @@ def render_columns(columns_config: dict, context: dict) -> dict[str, str]:
     return final_row
 
 
-def export_logs(profile_path: str, output_path: str, target_date: str | None = None):
-    """Export logs based on the provided TOML profile.
-
-    Generates a default profile if the specified one is missing. The process
-    involves:
-    1. Reading logs from the database.
-    2. Filtering by date if requested.
-    3. Extracting metadata from job codes using regex.
-    4. Grouping records based on profile settings.
-    5. Aggregating times and notes.
-    6. Rendering final columns via Jinja2.
+def aggregate_logs(
+    profile_path: str, target_date: str | None = None, group_by_date: bool = False
+) -> tuple[dict, list[dict]]:
+    """Aggregate logs based on the provided TOML profile.
 
     Args:
         profile_path (str): Path to the TOML profile file.
-        output_path (str): Path for the output CSV file.
-        target_date (str | None, optional): Date string in YYYY-MM-DD format.
-            Defaults to None (all logs).
+        target_date (str | None, optional): Date string in YYYY-MM-DD format. Defaults to None.
+        group_by_date (bool, optional): If True, aggregates logs by date as well. Defaults to False.
 
     Returns:
-        int: The number of aggregated rows exported.
+        tuple[dict, list[dict]]: (columns_config, list of rendered rows)
     """
     profile = load_profile(profile_path)
     export_config = profile.get("export", {})
@@ -202,6 +194,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     defaults_config = export_config.get("defaults", {})
 
     group_by_keys = export_config.get("group_by", [])
+    if group_by_date:
+        group_by_keys = ["_date"] + group_by_keys
+
     note_item_template = export_config.get("format", {}).get("note_item", "")
     note_separator = export_config.get("format", {}).get("note_separator", "/")
     columns_config = export_config.get("columns", {})
@@ -232,6 +227,9 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         row_data["project_name"] = log["project_name"] or ""
         row_data["job_name"] = log["job_name"] or ""
 
+        if group_by_date:
+            row_data["_date"] = log["start_time"][:10] if log["start_time"] else ""
+
         # Prefer explicit duration_hours, fall back to end-start calculation
         start_time = log["start_time"]
         end_time = log["end_time"]
@@ -258,7 +256,7 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     def group_key_func(item):
         return tuple(item.get(k, "") for k in group_by_keys)
 
-    extracted_data.sort(key=group_key_func)
+    extracted_data.sort(key=group_key_func, reverse=group_by_date)
 
     aggregated_results = []
 
@@ -289,7 +287,7 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
                 sorted(
                     (k, str(v))
                     for k, v in item.items()
-                    if k not in ("_raw_time_hours", "time_hours")
+                    if k not in ("_raw_time_hours", "time_hours", "_sum_of_rounded_hours")
                 )
             )
             if sub_key not in sub_groups:
@@ -329,7 +327,41 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         # Map to final columns using Jinja2
         final_row = render_columns(columns_config, representative_item)
 
+        if group_by_date:
+            final_row["_date"] = representative_item.get("_date", "")
+
         aggregated_results.append(final_row)
+
+    return columns_config, aggregated_results
+
+
+def export_logs(profile_path: str, output_path: str, target_date: str | None = None):
+    """Export logs based on the provided TOML profile.
+
+    Generates a default profile if the specified one is missing. The process
+    involves:
+    1. Reading logs from the database.
+    2. Filtering by date if requested.
+    3. Extracting metadata from job codes using regex.
+    4. Grouping records based on profile settings.
+    5. Aggregating times and notes.
+    6. Rendering final columns via Jinja2.
+
+    Args:
+        profile_path (str): Path to the TOML profile file.
+        output_path (str): Path for the output CSV file.
+        target_date (str | None, optional): Date string in YYYY-MM-DD format.
+            Defaults to None (all logs).
+
+    Returns:
+        int: The number of aggregated rows exported.
+    """
+    if not os.path.exists(profile_path):
+        # Create default profile if it doesn't exist
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_PROFILE_TEMPLATE)
+
+    columns_config, aggregated_results = aggregate_logs(profile_path, target_date)
 
     if not aggregated_results:
         print("No logs matches the extract configuration or logs are empty.")
@@ -337,7 +369,7 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
 
     csv_columns = list(columns_config.keys())
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=csv_columns)
+        writer = csv.DictWriter(f, fieldnames=csv_columns, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(aggregated_results)
 
