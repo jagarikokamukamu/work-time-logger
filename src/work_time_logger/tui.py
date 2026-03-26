@@ -344,18 +344,13 @@ class WtlApp(App):
             job_name = str(event.node.label)
             project_name = str(event.node.parent.label)
 
-            # To prevent starting if already running
-            try:
-                operations.start_log("temp_nonexistent", "temp")
-            except ValueError as e:
-                if "already running" in str(e):
-                    self.notify(
-                        "A job is already running! Please stop it first.",
-                        severity="error",
-                    )
-                    return
-            except Exception:
-                pass
+            # Use the dedicated check instead of relying on start_log side effects.
+            if operations.is_any_job_running():
+                self.notify(
+                    "A job is already running! Please stop it first.",
+                    severity="error",
+                )
+                return
 
             self.start_timer_for_selection((project_name, job_name))
 
@@ -677,35 +672,25 @@ class WtlApp(App):
             job_name = str(self.projects_tree.cursor_node.label)
             project_name = str(self.projects_tree.cursor_node.parent.label)
 
-            try:
-                operations.start_log("temp_nonexistent", "temp")
-            except ValueError as e:
-                if "already running" in str(e):
-                    self.notify(
-                        "A job is already running! Please stop it first.",
-                        severity="error",
-                    )
-                    return
-            except Exception:
-                pass
+            # Use the dedicated check instead of relying on start_log side effects.
+            if operations.is_any_job_running():
+                self.notify(
+                    "A job is already running! Please stop it first.",
+                    severity="error",
+                )
+                return
 
             self.start_timer_for_selection((project_name, job_name))
             return
 
         def check_running_and_show_modal():
             """Helper to check for running jobs before showing selection modal."""
-            try:
-                # To prevent opening modal if already running
-                operations.start_log("temp_nonexistent", "temp")
-            except ValueError as e:
-                if "already running" in str(e):
-                    self.notify(
-                        "A job is already running! Please stop it first.",
-                        severity="error",
-                    )
-                    return
-            except Exception:
-                pass  # Expected since temps fail
+            if operations.is_any_job_running():
+                self.notify(
+                    "A job is already running! Please stop it first.",
+                    severity="error",
+                )
+                return
 
             self.push_screen(JobSelectionModal(), self.start_timer_for_selection)
 

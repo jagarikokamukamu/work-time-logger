@@ -235,6 +235,18 @@ def import_jobs_from_csv(
         return count
 
 
+def is_any_job_running() -> bool:
+    """Check if there is currently a running (active) log entry.
+
+    Returns:
+        bool: True if a job is currently running, False otherwise.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM logs WHERE end_time IS NULL")
+        return cursor.fetchone() is not None
+
+
 def start_log(project_name: str = None, job_name: str = None):
     """Start tracking a job, optionally leaving it unassigned.
 
