@@ -5,7 +5,11 @@
 ## 1. 設定プロファイルの確認・編集
 
 `wtl` では、`~/.wtl/profile.toml` の設定を編集することで、インポートするCSVのカラム名と内部データの紐づけ(`import.mapping`)を自由に設定できます。
-（※ファイルがない場合は、一度ダミーで `uv run wtl log export` を実行すると雛形が生成されます）
+以下のコマンドを実行すると、設定ファイルが（存在しない場合は作成された上で）システムのデフォルトエディタで開かれます。
+
+```bash
+uv run wtl profile open
+```
 
 > [!TIP]
 > プレースホルダ (`{time_hours}`, `{project_name}` 等) で使える変数の完全な仕様やリストは [docs/profile.md](profile.md) を参照してください。
