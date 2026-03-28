@@ -487,6 +487,7 @@ class DailySummaryModal(ModalScreen):
         table = self.query_one(CopyableDataTable)
        
         try:
+            from rich.text import Text
             profile_path = str(db.DB_DIR / "profile.toml")
             columns_config, aggregated_results = exporter.aggregate_logs(
                 profile_path, target_date=None, group_by_date=True
@@ -494,12 +495,12 @@ class DailySummaryModal(ModalScreen):
            
             # Setup columns: Date + configured CSV columns
             col_names = ["Date"] + list(columns_config.keys())
-            table.add_columns(*col_names)
+            table.add_columns(*[Text(c) for c in col_names])
            
             for row in aggregated_results:
-                row_values = [row.get("_date", "")]
+                row_values = [Text(str(row.get("_date", "")))]
                 for col in columns_config.keys():
-                    row_values.append(str(row.get(col, "")))
+                    row_values.append(Text(str(row.get(col, ""))))
                 table.add_row(*row_values)
                 
         except Exception as e:
