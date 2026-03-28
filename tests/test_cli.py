@@ -140,3 +140,228 @@ def test_job_delete():
     )
     assert result.exit_code == 0
     assert "Deleted job" in result.stdout
+
+
+def test_project_delete():
+    runner.invoke(cli.app, ["project", "add", "-p", "Proj To Delete"])
+    projects = operations.list_projects()
+    pid = next((p["id"] for p in projects if p["name"] == "Proj To Delete"), None)
+    assert pid is not None
+
+    result = runner.invoke(cli.app, ["project", "delete", str(pid)])
+    assert result.exit_code == 0
+    assert f"Deleted project ID {pid}" in result.stdout
+
+
+def test_job_list_with_codes(tmp_path):
+    runner.invoke(cli.app, ["project", "add", "-p", "Code Proj"])
+    runner.invoke(
+        cli.app, ["job", "add", "-j", "Code Job", "-p", "Code Proj", "-c", "JTC-123"]
+    )
+
+    profile_file = tmp_path / "profile.toml"
+    profile_file.write_text(
+        "[export.extract]\n"
+        'job_code = "JTC-(?P<ticket>\\\\d+)"\n'
+        "[export.columns]\n"
+        'Ticket = "{{ ticket }}"\n'
+    )
+
+    result = runner.invoke(
+        cli.app,
+        ["job", "list", "--project", "Code Proj", "--codes", "-r", str(profile_file)],
+    )
+    assert result.exit_code == 0
+    assert "Ticket" in result.stdout
+    assert "123" in result.stdout
+
+
+def test_log_export(tmp_path):
+    runner.invoke(cli.app, ["project", "add", "-p", "Export Proj"])
+    runner.invoke(cli.app, ["job", "add", "-j", "Export Job", "-p", "Export Proj"])
+    runner.invoke(cli.app, ["start", "-p", "Export Proj", "-j", "Export Job"])
+    runner.invoke(cli.app, ["stop"])
+
+    profile_file = tmp_path / "profile.toml"
+    profile_file.write_text('[export.columns]\nProject = "{{ project_name }}"\n')
+    out_file = tmp_path / "out.csv"
+
+    result = runner.invoke(
+        cli.app,
+        ["log", "export", "-r", str(profile_file), "-o", str(out_file), "-d", "all"],
+    )
+    assert result.exit_code == 0
+    assert "Successfully exported" in result.stdout
+    assert out_file.exists()
+    content = out_file.read_text("utf-8")
+    assert "Export Proj" in content
+
+
+def test_profile_open(monkeypatch, tmp_path):
+    # Mock subprocess.run / os.startfile so it doesn't actually open the editor
+    opened_file = None
+
+    def mock_startfile(filepath):
+        nonlocal opened_file
+        opened_file = filepath
+
+    def mock_run(args, **kwargs):
+        nonlocal opened_file
+        opened_file = args[1] if len(args) > 1 else None
+
+    import os
+
+    if hasattr(os, "startfile"):
+        monkeypatch.setattr(os, "startfile", mock_startfile)
+    else:
+        import subprocess
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+    result = runner.invoke(cli.app, ["profile", "open"])
+    assert result.exit_code == 0
+    assert "Opening " in result.stdout
+    assert opened_file is not None
+
+
+def test_complete_project_name():
+    operations.add_project("Alpha")
+    operations.add_project("Beta")
+    results = list(cli.complete_project_name("Al"))
+    assert "Alpha" in results
+    assert "Beta" not in results
+
+
+def test_complete_job_name():
+    operations.add_project("ProjX")
+    operations.add_job("Job1", "ProjX")
+    operations.add_job("Job2", "ProjX")
+
+    # Mock Typer Context
+    class MockContext:
+        params = {"project_name": "ProjX"}
+
+    results = list(cli.complete_job_name(MockContext(), "Jo"))
+    assert "Job1" in results
+    assert "Job2" in results
+
+
+def test_start_exception():
+    # Try starting a non-existent job in a non-existent project
+    result = runner.invoke(cli.app, ["start", "-p", "NotExist", "-j", "NoJob"])
+    assert result.exit_code == 0
+    assert "Error:" in result.stdout
+    # Ensure no log was started
+    logs = operations.list_logs()
+    assert not any(log.get("end_time") is None for log in logs)
+
+
+def test_stop_exception():
+    # Attempt to stop when no active log exists
+    result = runner.invoke(cli.app, ["stop"])
+    assert result.exit_code == 0
+    assert "Error: No running jobs found." in result.stdout
+
+
+def test_project_add_duplicate():
+    runner.invoke(cli.app, ["project", "add", "-p", "Duplicate Project"])
+    initial_count = len(operations.list_projects())
+
+    # Add again
+    result = runner.invoke(cli.app, ["project", "add", "-p", "Duplicate Project"])
+    assert result.exit_code == 0
+    assert "Error:" in result.stdout
+
+    # Check that count hasn't changed
+    assert len(operations.list_projects()) == initial_count
+
+
+def test_job_add_missing_project():
+    result = runner.invoke(cli.app, ["job", "add", "-j", "AnyJob", "-p", "NoProject"])
+    assert result.exit_code == 0
+    assert "Error:" in result.stdout
+    assert len(operations.list_jobs("NoProject")) == 0
+
+
+def test_job_delete_missing():
+    runner.invoke(cli.app, ["project", "add", "-p", "Target Proj"])
+    result = runner.invoke(
+        cli.app, ["job", "delete", "-j", "UnknownJob", "-p", "Target Proj"]
+    )
+    assert result.exit_code == 0
+    assert "not found" in result.stdout
+
+
+def test_job_import_file_not_found():
+    runner.invoke(cli.app, ["project", "add", "-p", "Target Proj"])
+    result = runner.invoke(
+        cli.app, ["job", "import", "non_existent.csv", "-p", "Target Proj"]
+    )
+    assert result.exit_code == 0
+    assert "Error:" in result.stdout
+    assert len(operations.list_jobs("Target Proj")) == 0
+
+
+def test_log_delete_missing():
+    result = runner.invoke(cli.app, ["log", "delete", "99999"])
+    assert result.exit_code == 0
+    assert "Error:" in result.stdout
+
+
+def test_log_assign_missing():
+    runner.invoke(cli.app, ["project", "add", "-p", "A"])
+    runner.invoke(cli.app, ["job", "add", "-j", "B", "-p", "A"])
+    result = runner.invoke(cli.app, ["log", "assign", "99999", "-p", "A", "-j", "B"])
+    assert result.exit_code == 0
+    assert "Error:" in result.stdout
+
+
+def test_job_list_codes_exception(tmp_path):
+    runner.invoke(cli.app, ["project", "add", "-p", "Error Proj"])
+    # Write invalid TOML to trigger profile load error
+    profile_file = tmp_path / "invalid.toml"
+    profile_file.write_text("[export\nmissing_bracket=true")
+
+    result = runner.invoke(
+        cli.app,
+        ["job", "list", "--project", "Error Proj", "--codes", "-r", str(profile_file)],
+    )
+    assert result.exit_code == 0
+    assert "Error expanding job codes:" in result.stdout
+
+
+def test_log_export_no_matching_logs(tmp_path):
+    profile_file = tmp_path / "profile.toml"
+    profile_file.write_text('[export.columns]\nCol=""')
+    out_file = tmp_path / "out.csv"
+
+    # Exporting a future date where no logs exist
+    result = runner.invoke(
+        cli.app,
+        [
+            "log",
+            "export",
+            "-r",
+            str(profile_file),
+            "-o",
+            str(out_file),
+            "-d",
+            "2100-01-01",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "No logs matched" in result.stdout
+
+
+def test_profile_open_missing(monkeypatch, tmp_path):
+    # Mock exporter.load_profile to raise an exception
+    import work_time_logger.exporter as t_exp
+
+    def mock_load_profile(path):
+        raise ValueError("Simulated profile error")
+
+    monkeypatch.setattr(t_exp, "load_profile", mock_load_profile)
+
+    result = runner.invoke(cli.app, ["profile", "open"])
+    assert result.exit_code == 0
+    assert "Error ensuring profile exists:" in result.stdout
