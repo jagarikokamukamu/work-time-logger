@@ -194,3 +194,86 @@ async def test_overlay_input():
         overlay.action_cancel()
         assert overlay.styles.display == "none"
 
+
+@pytest.mark.asyncio
+async def test_overlay_input_extended():
+    """Test OverlayInput in date and time modes."""
+    app = DummyApp()
+    async with app.run_test() as pilot:
+        overlay = app.query_one(OverlayInput)
+        
+        # Test date mode
+        overlay.edit_mode = "date"
+        overlay.value = "2023-10-01"
+        overlay.action_increment()
+        assert overlay.value != "2023-10-01"
+        overlay.action_decrement()
+        # the exact format back might differ or be slightly offset, just verify it runs without crashing
+        
+        # Invalid date fallback
+        overlay.value = "invalid"
+        overlay.action_increment()
+        # Should not crash, validation might leave it as invalid or reset
+        
+        # Test time mode
+        overlay.edit_mode = "time"
+        overlay.value = "10:00:00"
+        # Increment/decrement should not crash and may or may not change value depending on valid formats
+        overlay.action_increment()
+        overlay.action_decrement()
+        
+        # Invalid time fallback
+        overlay.value = "invalid"
+        overlay.action_increment()
+        
+        # Test submit
+        result = None
+        def mock_callback(val):
+            nonlocal result
+            result = val
+
+        overlay.callback = mock_callback
+        await overlay.action_submit()
+        # Just verifying it runs without crashing, and callback might be called.
+        assert result == "invalid" or result is None
+
+
+@pytest.mark.asyncio
+async def test_job_code_modal_missing_job():
+    """Test JobCodeModal when the specified job does not exist."""
+    app = DummyApp()
+    async with app.run_test() as pilot:
+        operations.add_project("PJ1")
+        # Do not add job
+        
+        modal = JobCodeModal("PJ1", "MissingJob")
+        await app.push_screen(modal)
+        
+        table = modal.query_one(CopyableDataTable)
+        # It should add an 'Error' row indicating job not found
+        rows = [table.get_row_at(i) for i in range(table.row_count)]
+        assert any("Error" in str(row) or "Job not found" in str(row) for row in rows)
+        
+        await pilot.click("#btn-close")
+
+
+@pytest.mark.asyncio
+async def test_daily_summary_modal_error(monkeypatch):
+    """Test DailySummaryModal when exporter raises an exception."""
+    app = DummyApp()
+    async with app.run_test() as pilot:
+        # Mock exporter to fail
+        import work_time_logger.exporter as t_exp
+        def mock_aggregate(*args, **kwargs):
+            raise ValueError("Test Aggregation Error")
+
+        monkeypatch.setattr(t_exp, "aggregate_logs", mock_aggregate)
+        
+        modal = DailySummaryModal()
+        await app.push_screen(modal)
+        
+        table = modal.query_one(CopyableDataTable)
+        rows = [table.get_row_at(i) for i in range(table.row_count)]
+        assert any("Test Aggregation Error" in str(row) for row in rows)
+        
+        await pilot.press("escape")

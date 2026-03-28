@@ -342,3 +342,90 @@ async def test_tui_misc_actions():
         await pilot.press("b")
         await pilot.pause()
         await pilot.press("escape")
+
+
+@pytest.mark.asyncio
+async def test_tui_smart_input_date_time():
+    """Test smart date and time input parsing in cell edits."""
+    operations.create_empty_log()
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        app.set_focus(table)
+
+        # 1. Edit Date (col 3) with smart format
+        table.move_cursor(row=0, column=3)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+        for char in "+1":
+            await pilot.press(char)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+
+        # 2. Edit Date with invalid format to trigger error
+        table.move_cursor(row=0, column=3)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+        for char in "inv":
+            await pilot.press(char)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+        # Should stay on table, notification shown
+
+        # 3. Edit Start Time (col 4) with smart format "18"
+        table.move_cursor(row=0, column=4)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+        # clear input
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        for char in "18":
+            await pilot.press(char)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+
+        # 4. Edit with start > end time error
+        table.move_cursor(row=0, column=5)  # End Time
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+        # clear input
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        for char in "10":  # 10:00 (which is before 18:00 start)
+            await pilot.press(char)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+
+
+@pytest.mark.asyncio
+async def test_tui_start_while_running():
+    """Test trying to start a job from the tree or via hotkey when one is running."""
+    operations.add_project("MockProj")
+    operations.add_job("MockJob", "MockProj")
+    operations.start_log("MockProj", "MockJob")
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        # pressing 's' should fail because a job is already running
+        await pilot.press("s")
+        await pilot.pause()
+
+        # Try tree node enter
+        app.set_focus(app.projects_tree)
+        # Root is expanded by default (for new project).
+        # Down once to MockProj, Down twice to MockJob
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Nothing should crash; notification handles it
+        assert app.logs_table.row_count > 0
