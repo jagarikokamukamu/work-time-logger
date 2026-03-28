@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import (
@@ -16,6 +17,38 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 
 from . import db, operations
+
+
+class CopyableDataTable(DataTable):
+    """A DataTable that supports copying the selected row or cell to the clipboard."""
+
+    BINDINGS = [
+        Binding("c", "copy_to_clipboard", "コピー", show=True),
+    ]
+
+    def action_copy_to_clipboard(self) -> None:
+        """Copies the currently selected item to the clipboard."""
+        coord = self.cursor_coordinate
+        if not coord:
+            return
+
+        try:
+            if self.cursor_type == "row":
+                row_key = self.coordinate_to_cell_key(coord).row_key
+                row_vals = self.get_row(row_key)
+                text = "\t".join(str(v) for v in row_vals)
+            elif self.cursor_type == "column":
+                col_key = self.coordinate_to_cell_key(coord).column_key
+                col_vals = self.get_column(col_key)
+                text = "\n".join(str(v) for v in col_vals)
+            else:
+                val = self.get_cell_at(coord)
+                text = str(val)
+
+            self.app.copy_to_clipboard(text)
+            self.app.notify("クリップボードにコピーしました", title="Copied")
+        except Exception as e:
+            self.app.notify(f"コピーに失敗しました: {e}", severity="error")
 
 
 class JobSelectionModal(ModalScreen[tuple[str, str]]):
@@ -426,6 +459,13 @@ class DailySummaryModal(ModalScreen):
         text-style: bold;
         margin-bottom: 1;
     }
+    .copy-hint {
+        content-align: right middle;
+        width: 100%;
+        text-style: italic;
+        opacity: 0.8;
+        margin-top: 1;
+    }
     """
 
     BINDINGS = [
@@ -437,24 +477,25 @@ class DailySummaryModal(ModalScreen):
         """Compose the summary screen widgets."""
         with Container(id="summary-container"):
             yield Static("Daily Work Summary", classes="summary-title")
-            yield DataTable(id="summary-table")
+            yield CopyableDataTable(id="summary-table")
+            yield Label("[b orange]c[/] copy", classes="copy-hint")
 
     def on_mount(self) -> None:
         """Mount handler to populate the summary table."""
         from . import exporter
-        
-        table = self.query_one(DataTable)
-        
+       
+        table = self.query_one(CopyableDataTable)
+       
         try:
             profile_path = str(db.DB_DIR / "profile.toml")
             columns_config, aggregated_results = exporter.aggregate_logs(
                 profile_path, target_date=None, group_by_date=True
             )
-            
+           
             # Setup columns: Date + configured CSV columns
             col_names = ["Date"] + list(columns_config.keys())
             table.add_columns(*col_names)
-            
+           
             for row in aggregated_results:
                 row_values = [row.get("_date", "")]
                 for col in columns_config.keys():
@@ -580,6 +621,14 @@ class JobCodeModal(ModalScreen):
         text-style: bold;
         margin-bottom: 1;
     }
+    .copy-hint {
+        content-align: right middle;
+        width: 100%;
+        text-style: italic;
+        opacity: 0.8;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
     #job-code-table {
         height: auto;
         max-height: 20;
@@ -606,14 +655,15 @@ class JobCodeModal(ModalScreen):
             yield Static(
                 f"Job Code Expansion: {self.job_name}", classes="job-code-title"
             )
-            yield DataTable(id="job-code-table")
+            yield CopyableDataTable(id="job-code-table")
+            yield Label("[b orange]c[/] copy", classes="copy-hint")
             yield Button("Close", id="btn-close", variant="primary")
 
     def on_mount(self) -> None:
         """Mount handler to populate the job code table."""
         from . import exporter
 
-        table = self.query_one(DataTable)
+        table = self.query_one(CopyableDataTable)
         table.add_columns("Column", "Value")
 
         try:
