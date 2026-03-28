@@ -246,3 +246,99 @@ async def test_tui_arrow_key_adjustment():
         await pilot.press("down")
         assert overlay.value == "1.0"
         await pilot.press("escape")
+
+
+@pytest.mark.asyncio
+async def test_tui_misc_actions():
+    """Test various global actions and focus switching."""
+    operations.add_project("MockProj")
+    operations.add_job("MockJob", "MockProj")
+    operations.start_log("MockProj", "MockJob")
+    operations.stop_log()
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        # action_switch_focus
+        assert app.focused == app.logs_table
+        await pilot.press("tab")
+        await pilot.pause()
+        assert app.focused == app.projects_tree
+
+        # action_start_unassigned
+        await pilot.press("S")
+        await pilot.pause()
+
+        # Check that it started an unassigned log
+        # (row counts should increase or be updated)
+        assert app.logs_table.row_count > 0
+
+        # action_show_summary
+        await pilot.press("v")
+        await pilot.pause()
+        from work_time_logger.widgets import DailySummaryModal
+
+        assert isinstance(app.screen, DailySummaryModal)
+        await pilot.press("escape")
+        await pilot.pause()
+
+        # action_export_logs (just open and close)
+        await pilot.press("e")
+        await pilot.pause()
+        from work_time_logger.widgets import ExportLogsModal
+
+        assert isinstance(app.screen, ExportLogsModal)
+        await pilot.press("escape")
+        await pilot.pause()
+
+        # action_add_project (p)
+        await pilot.press("p")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_add_job (j)
+        await pilot.press("j")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_add_log (a)
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_delete_log (d)
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_delete_job (shift+d / D)
+        await pilot.press("D")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_delete_project (ctrl+d)
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_log_assign (shift+a / A)
+        await pilot.press("A")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_filter (f)
+        await pilot.press("f")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_clear_filter (c)
+        await pilot.press("c")
+        await pilot.pause()
+
+        # action_help (?)
+        await pilot.press("?")
+        await pilot.pause()
+        await pilot.press("escape")
+
+        # action_dashboard (b)
+        await pilot.press("b")
+        await pilot.pause()
+        await pilot.press("escape")
