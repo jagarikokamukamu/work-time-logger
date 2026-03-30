@@ -1,6 +1,5 @@
-"""Unit tests for the custom widgets in work_time_logger.widgets."""
-
-from datetime import datetime
+import asyncio
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -30,7 +29,7 @@ def setup_test_db(tmp_path: Path):
     original_db_path = db.DB_PATH
 
     db.DB_DIR = test_db_dir
-    db.DB_PATH = test_db_dir / "wtl.db"
+    db.DB_PATH = test_db_dir / "test_db.sqlite3"
 
     operations.setup()
 
@@ -104,18 +103,19 @@ async def test_confirm_delete_modal():
         modal = ConfirmDeleteModal()
         # Mock dismiss to check return value
         result = None
+
         def mock_dismiss(res):
             nonlocal result
             result = res
-            
+
         modal.dismiss = mock_dismiss
-        
+
         await app.push_screen(modal)
-        
+
         # Test 'yes' action directly
         modal.action_yes()
         assert result is True
-        
+
         # Test 'no' action directly
         modal.action_no()
         assert result is False
@@ -127,19 +127,20 @@ async def test_filter_modal():
     app = DummyApp()
     async with app.run_test(size=(120, 60)) as pilot:
         modal = FilterModal({"project": "ProjA"})
-        
+
         result = None
+
         def mock_dismiss(res):
             nonlocal result
             result = res
-            
+
         modal.dismiss = mock_dismiss
         await app.push_screen(modal)
-        
+
         # Check initial value
         proj_input = modal.query_one("#f-project", Input)
         assert proj_input.value == "ProjA"
-        
+
         # Simulate Clear button
         await pilot.click("#btn-clear")
         await pilot.pause()
@@ -152,20 +153,21 @@ async def test_export_logs_modal():
     app = DummyApp()
     async with app.run_test() as pilot:
         modal = ExportLogsModal()
-        
+
         result = None
+
         def mock_dismiss(res):
             nonlocal result
             result = res
-            
+
         modal.dismiss = mock_dismiss
         await app.push_screen(modal)
-        
+
         # Simulate cancel
         await pilot.click("#btn-cancel")
         await pilot.pause()
         assert result is None
-        
+
         # Simulate Export
         await pilot.click("#btn-export")
         await pilot.pause()
@@ -179,13 +181,13 @@ async def test_overlay_input():
     app = DummyApp()
     async with app.run_test() as pilot:
         overlay = app.query_one(OverlayInput)
-        
+
         # Test duration mode increment
         overlay.edit_mode = "duration"
         overlay.value = "1.0"
         overlay.action_increment()
         assert overlay.value == "1.1"
-        
+
         overlay.action_decrement()
         assert overlay.value == "1.0"
 
@@ -201,33 +203,34 @@ async def test_overlay_input_extended():
     app = DummyApp()
     async with app.run_test() as pilot:
         overlay = app.query_one(OverlayInput)
-        
+
         # Test date mode
         overlay.edit_mode = "date"
         overlay.value = "2023-10-01"
         overlay.action_increment()
         assert overlay.value != "2023-10-01"
         overlay.action_decrement()
-        # the exact format back might differ or be slightly offset, just verify it runs without crashing
-        
+        # verify it runs without crashing
+
         # Invalid date fallback
         overlay.value = "invalid"
         overlay.action_increment()
         # Should not crash, validation might leave it as invalid or reset
-        
+
         # Test time mode
         overlay.edit_mode = "time"
         overlay.value = "10:00:00"
-        # Increment/decrement should not crash and may or may not change value depending on valid formats
+        # Increment/decrement should not crash
         overlay.action_increment()
         overlay.action_decrement()
-        
+
         # Invalid time fallback
         overlay.value = "invalid"
         overlay.action_increment()
-        
+
         # Test submit
         result = None
+
         def mock_callback(val):
             nonlocal result
             result = val
@@ -245,15 +248,15 @@ async def test_job_code_modal_missing_job():
     async with app.run_test() as pilot:
         operations.add_project("PJ1")
         # Do not add job
-        
+
         modal = JobCodeModal("PJ1", "MissingJob")
         await app.push_screen(modal)
-        
+
         table = modal.query_one(CopyableDataTable)
         # It should add an 'Error' row indicating job not found
         rows = [table.get_row_at(i) for i in range(table.row_count)]
         assert any("Error" in str(row) or "Job not found" in str(row) for row in rows)
-        
+
         await pilot.click("#btn-close")
 
 
@@ -264,16 +267,68 @@ async def test_daily_summary_modal_error(monkeypatch):
     async with app.run_test() as pilot:
         # Mock exporter to fail
         import work_time_logger.exporter as t_exp
+
         def mock_aggregate(*args, **kwargs):
             raise ValueError("Test Aggregation Error")
 
         monkeypatch.setattr(t_exp, "aggregate_logs", mock_aggregate)
-        
+
         modal = DailySummaryModal()
         await app.push_screen(modal)
-        
+
         table = modal.query_one(CopyableDataTable)
         rows = [table.get_row_at(i) for i in range(table.row_count)]
         assert any("Test Aggregation Error" in str(row) for row in rows)
-        
+
         await pilot.press("escape")
+
+
+@pytest.mark.asyncio
+async def test_job_code_modal_editing_logic(tmp_path: Path):
+    """Test the JobCodeModal editing logic following established patterns."""
+    # Pattern: Use textwrap.dedent for profile setup in tests
+    profile_path = db.DB_DIR / "profile.toml"
+    profile_path.write_text(
+        textwrap.dedent("""
+        [export.extract]
+        job_code = "^JC-(?P<kind>[A-Z])-(?P<num>\\\\d+)$"
+
+        [import.mapping]
+        description = "Fixed Desc"
+        job_code = "JC-{{ kind }}-{{ num }}"
+    """),
+        encoding="utf-8",
+    )
+
+    # Setup test data
+    operations.add_project("ProjE")
+    # Description matches mapping to avoid 'AssertionError' conflict
+    operations.add_job("JobE1", "ProjE", "Fixed Desc", "JC-K-123")
+
+    app = DummyApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        modal = JobCodeModal("ProjE", "JobE1")
+        await app.push_screen(modal)
+        await pilot.pause()
+
+        # Switch to import mode
+        await pilot.press("t")
+        await pilot.pause()
+
+        # Verify initial deconstruction
+        assert str(modal.import_row.get("kind")) == "K"
+        assert str(modal.import_row.get("num")) == "123"
+
+        # Simulate submission for DB update logic verification
+        inp = modal.query_one("#job-code-edit-input", Input)
+        modal._editing_col_name = "num"
+        modal.on_edit_submitted(Input.Submitted(inp, "456"))
+
+        await asyncio.sleep(0.5)
+
+        # Integrity Check
+        jobs = operations.list_jobs("ProjE")
+        job = next((j for j in jobs if j["name"] == "JobE1"), None)
+        assert job is not None
+        assert job["code"] == "JC-K-456"
+        assert job["description"] == "Fixed Desc"
