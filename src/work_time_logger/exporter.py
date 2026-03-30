@@ -405,18 +405,31 @@ def _get_import_columns(import_mapping: dict) -> list[str]:
 
 def get_job_import_row(
     profile: dict, project_name: str, job_name: str
-) -> tuple[list[str], dict[str, str]]:
-    """Get the rendered import-style row for a single job."""
+) -> tuple[list[str], dict[str, str], list[str]]:
+    """Get the rendered import-style row for a single job.
+
+    Returns:
+        tuple: (all_columns, row_data, name_vars)
+    """
     import_mapping = profile.get("import", {}).get("mapping", {})
     export_config = profile.get("export", {})
 
     all_columns = _get_import_columns(import_mapping)
 
+    # Get vars lists for mapping back
+    def get_vars(template):
+        if not template or not isinstance(template, str):
+            return []
+        return re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
+
+    name_vars = get_vars(import_mapping.get("name", ""))
+    desc_vars = get_vars(import_mapping.get("description", ""))
+
     # Find the job
     jobs = operations.list_jobs(project_name)
     job = next((j for j in jobs if j["name"] == job_name), None)
     if not job:
-        return all_columns, dict.fromkeys(all_columns, "")
+        return all_columns, dict.fromkeys(all_columns, ""), name_vars
 
     job_code = job["code"] or ""
 
@@ -461,15 +474,6 @@ def get_job_import_row(
         if m:
             deconstructed_vars = m.groupdict()
 
-    # Get vars lists for mapping back
-    def get_vars(template):
-        if not template or not isinstance(template, str):
-            return []
-        return re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
-
-    name_vars = get_vars(import_mapping.get("name", ""))
-    desc_vars = get_vars(import_mapping.get("description", ""))
-
     row = {}
     for col in all_columns:
         val = ""
@@ -488,7 +492,29 @@ def get_job_import_row(
                 val = ""
         row[col] = val
 
-    return all_columns, row
+    return all_columns, row, name_vars
+
+
+def update_job_from_import_row(
+    profile: dict, project_name: str, job_name: str, updated_row: dict[str, str]
+) -> None:
+    """Rebuild job attributes from an import-style row and update the database.
+
+    Args:
+        profile (dict): The TOML profile.
+        project_name (str): The project name.
+        job_name (str): The original job name (used for lookup).
+        updated_row (dict): The full dictionary of Import Mode columns/values.
+    """
+    import_mapping = profile.get("import", {}).get("mapping", {})
+
+    # Render new description and code
+    # We use the updated_row as the context for Jinja2
+    new_desc = _render(import_mapping.get("description", ""), updated_row)
+    new_code = _render(import_mapping.get("job_code", ""), updated_row)
+
+    # Note: We do NOT update the job name as per user feedback.
+    operations.update_job(project_name, job_name, description=new_desc, code=new_code)
 
 
 def export_jobs(
@@ -524,7 +550,7 @@ def export_jobs(
         # Optimization: We already have the job dict,
         # but get_job_import_row currently re-lists.
         # For small numbers of jobs it's fine, but let's be aware.
-        _, row = get_job_import_row(profile, job["project_name"], job["name"])
+        _, row, _ = get_job_import_row(profile, job["project_name"], job["name"])
         job_results.append(row)
 
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
