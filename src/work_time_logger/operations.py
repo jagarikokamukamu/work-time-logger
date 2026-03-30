@@ -163,6 +163,7 @@ def import_jobs_from_csv(
     """
     import os
     import tomllib
+
     def render(template_str: str, context: dict) -> str | None:
         if not template_str:
             return None
@@ -568,3 +569,47 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def update_job(
+    project_name: str,
+    job_name: str,
+    description: str | None = MISSING,
+    code: str | None = MISSING,
+) -> None:
+    """Update an existing job's details. Job name is immutable here.
+
+    Args:
+        project_name (str): The project name.
+        job_name (str): The job name to update.
+        description (str | None, optional): New description.
+        code (str | None, optional): New job code.
+
+    Raises:
+        ValueError: If the job is not found.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT jobs.id, jobs.description, jobs.code
+            FROM jobs
+            JOIN projects ON jobs.project_id = projects.id
+            WHERE projects.name = ? AND jobs.name = ?
+        """,
+            (project_name, job_name),
+        )
+        existing = cursor.fetchone()
+        if not existing:
+            raise ValueError(f"Job '{job_name}' in project '{project_name}' not found.")
+
+        final_description = (
+            description if description is not MISSING else existing["description"]
+        )
+        final_code = code if code is not MISSING else existing["code"]
+
+        cursor.execute(
+            "UPDATE jobs SET description = ?, code = ? WHERE id = ?",
+            (final_description, final_code, existing["id"]),
+        )
+        conn.commit()

@@ -187,7 +187,7 @@ class WtlApp(App):
                 self.projects_tree.root.expand()
                 yield self.projects_tree
             with Vertical(id="main-content"):
-                self.logs_table = LogsTable(cursor_type="cell")
+                self.logs_table = LogsTable(cursor_type="cell", id="logs-table")
                 self.logs_table.add_columns(
                     "ID",
                     "Project",
@@ -439,8 +439,9 @@ class WtlApp(App):
             return
         self._commit_log_update(log_entry, memo=result)
 
+    @on(DataTable.CellSelected, "#logs-table")
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
-        """Handles the `DataTable.CellSelected` event.
+        """Handles the `DataTable.CellSelected` event for the logs table.
 
         This event is triggered when a cell in the LogsTable is selected,
         typically by pressing Enter. It determines the column and shows an
@@ -450,9 +451,10 @@ class WtlApp(App):
             event (DataTable.CellSelected): The event object containing
                 information about the selected cell.
         """
-        if not event.cell_key.row_key.value:
+        try:
+            log_id = int(str(event.cell_key.row_key.value))
+        except (ValueError, TypeError):
             return
-        log_id = int(event.cell_key.row_key.value)
         log_entry = next((entry for entry in self.logs if entry["id"] == log_id), None)
         if not log_entry:
             return

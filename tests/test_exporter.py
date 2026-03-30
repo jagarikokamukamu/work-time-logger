@@ -295,7 +295,7 @@ job_code = "{{ pfx }}_{{ n }}_{{ s }}"
         )
 
     profile = exporter.load_profile(str(profile_path))
-    cols, row = exporter.get_job_import_row(profile, "ProjB", "JobB1")
+    cols, row, _ = exporter.get_job_import_row(profile, "ProjB", "JobB1")
 
     assert "表示名" in cols
     assert "pfx" in cols
@@ -303,3 +303,31 @@ job_code = "{{ pfx }}_{{ n }}_{{ s }}"
     assert row["pfx"] == "KIND"
     assert row["n"] == "123"
     assert row["s"] == "EXT"
+
+
+def test_update_job_from_import_row(tmp_path: Path):
+    """Test updating a job's description and code from an import-style row."""
+    operations.add_project("ProjC")
+    operations.add_job("JobC1", "ProjC", "old desc", "OLD_CODE")
+
+    profile_path = tmp_path / "profile_update.toml"
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write(
+            """
+[import.mapping]
+description = "New: {{ note }}"
+job_code = "NEW_{{ num }}"
+"""
+        )
+
+    profile = exporter.load_profile(str(profile_path))
+    updated_row = {"note": "updated memo", "num": "999"}
+
+    exporter.update_job_from_import_row(profile, "ProjC", "JobC1", updated_row)
+
+    # Verify DB update
+    jobs = operations.list_jobs("ProjC")
+    job = next((j for j in jobs if j["name"] == "JobC1"), None)
+    assert job is not None
+    assert job["description"] == "New: updated memo"
+    assert job["code"] == "NEW_999"
