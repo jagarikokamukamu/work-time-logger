@@ -351,6 +351,43 @@ def import_jobs(
         console.print(f"[red]Error: {e}[/red]")
 
 
+@job_app.command("export")
+def export_jobs(
+    profile: str = typer.Option(
+        str(db.DB_DIR / "profile.toml"),
+        "--profile",
+        "-r",
+        help="Path to the TOML export profile.",
+    ),
+    out: str = typer.Option("jobs.csv", "--out", "-o", help="Output CSV file path."),
+    project_name: str = typer.Option(
+        None,
+        "--project",
+        "-p",
+        help="Filter jobs by project name.",
+        autocompletion=complete_project_name,
+    ),
+):
+    """Export jobs to a formatted CSV file based on a TOML profile.
+
+    Extracts metadata from job codes and formats columns according to the
+    rules defined in the specified profile. Useful for master data management.
+    """
+    from . import exporter
+
+    try:
+        count = exporter.export_jobs(profile, out, project_name=project_name)
+        if count > 0:
+            label = f"project '{project_name}'" if project_name else "all projects"
+            console.print(
+                f"[green]Successfully exported {count} jobs to {out} ({label})[/green]"
+            )
+        else:
+            console.print("[yellow]No jobs found or exported.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error exporting jobs: {e}[/red]")
+
+
 # --- Log Commands ---
 
 

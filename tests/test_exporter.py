@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 import pytest
@@ -222,3 +223,52 @@ time_aggregation_method = "{method}"
 
     assert run_export_method("sum_then_round") == 2.3
     assert run_export_method("round_then_sum") == 2.4
+
+
+def test_export_jobs(tmp_path: Path):
+    """Test the smart job export functionality based on import mapping."""
+    operations.add_project("ProjectA")
+    # Code matches the import structure: {Prefix}_{Number}_{Suffix}
+    # We'll use Japanese names in mapping to mimic the user's issue
+    operations.add_job("JobA1", "ProjectA", "desc A1", "KIND_001_SUB")
+
+    profile_path = tmp_path / "profile.toml"
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write('''
+[export.extract]
+job_code = "^(?P<pfx>[A-Z]+)_(?P<n>\\\\d+)_(?P<s>[A-Z]+)$"
+
+[import.mapping]
+name = "{{ 表示名 }}"
+description = "{{ メモ }}"
+job_code = "{{ 接頭語 }}_{{ 番号 }}_{{ 枝番 }}"
+
+[export.columns]
+"接頭語" = "{{ pfx }}"
+"番号" = "{{ n }}"
+"枝番" = "{{ s }}"
+''')
+
+    output_path = tmp_path / "jobs_export.csv"
+
+    count = exporter.export_jobs(str(profile_path), str(output_path), project_name="ProjectA")
+    assert count == 1
+
+    with open(output_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    assert len(rows) == 1
+    # Check headers derived from mapping
+    assert "表示名" in rows[0]
+    assert "接頭語" in rows[0]
+    assert "番号" in rows[0]
+    assert "枝番" in rows[0]
+    assert "メモ" in rows[0]
+
+    # Values
+    assert rows[0]["表示名"] == "JobA1"
+    assert rows[0]["接頭語"] == "KIND"
+    assert rows[0]["番号"] == "001"
+    assert rows[0]["枝番"] == "SUB"
+    assert rows[0]["メモ"] == "desc A1"

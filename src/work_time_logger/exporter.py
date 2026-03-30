@@ -378,3 +378,131 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
         writer.writerows(aggregated_results)
 
     return len(aggregated_results)
+
+
+def export_jobs(
+    profile_path: str, output_path: str, project_name: str | None = None
+) -> int:
+    """Export jobs based on the provided TOML profile.
+
+    This function produces a CSV file that is equivalent to the one used
+    for importing jobs. It analyzes [import.mapping] to determine the
+    columns and populates them by deconstructing the job name,
+    description, and job_code.
+
+    Args:
+        profile_path (str): Path to the TOML profile file.
+        output_path (str): Path for the output CSV file.
+        project_name (str | None, optional): Project name to filter by.
+            Defaults to None (all jobs).
+
+    Returns:
+        int: The number of jobs exported.
+    """
+    if not os.path.exists(profile_path):
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_PROFILE_TEMPLATE)
+
+    profile = load_profile(profile_path)
+    import_mapping = profile.get("import", {}).get("mapping", {})
+    export_config = profile.get("export", {})
+
+    # 1. Identify columns from import mapping
+    def get_vars(template):
+        if not template or not isinstance(template, str):
+            return []
+        return re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
+
+    name_vars = get_vars(import_mapping.get("name", ""))
+    desc_vars = get_vars(import_mapping.get("description", ""))
+    code_vars = get_vars(import_mapping.get("job_code", ""))
+
+    # Order: name, then description, then job_code variables
+    all_columns = []
+    for v in name_vars + desc_vars + code_vars:
+        if v not in all_columns:
+            all_columns.append(v)
+
+    if not all_columns:
+        # Fallback to basic columns if no import mapping is defined
+        all_columns = ["name", "description", "job_code"]
+
+    # Prepare extraction tools
+    compiled_regexes = get_extract_regexes(export_config)
+    defaults_config = export_config.get("defaults", {})
+    export_columns_config = export_config.get("columns", {})
+
+    # Helper for job_code deconstruction (Attempt A: Reverse mapping)
+    code_template = import_mapping.get("job_code", "")
+    code_reverse_regex = None
+    if code_template:
+        # Convert {{ var }} to (?P<var>.*)
+        regex_parts = []
+        parts = re.split(r"(\{\{\s*\w+\s*\}\})", code_template)
+        for p in parts:
+            vm = re.match(r"\{\{\s*(\w+)\s*\}\}", p)
+            if vm:
+                regex_parts.append(f"(?P<{vm.group(1)}>.*)")
+            else:
+                regex_parts.append(re.escape(p))
+        try:
+            code_reverse_regex = re.compile("^" + "".join(regex_parts) + "$")
+        except re.error:
+            code_reverse_regex = None
+
+    jobs = operations.list_jobs(project_name)
+    job_results = []
+
+    for job in jobs:
+        job_code = job["code"] or ""
+        # Context for extraction: first, base fields
+        base_ctx = {
+            "project_name": job["project_name"],
+            "job_name": job["name"],
+            "name": job["name"],
+            "description": job["description"] or "",
+            "job_code": job_code,
+            "aggregated_time": "0.0",  # Default for compatibility
+            "aggregated_notes": "",
+        }
+
+        # Context for regex-based fields (English names usually)
+        regex_ctx = extract_fields(job_code, compiled_regexes, defaults_config)
+        full_ctx = {**base_ctx, **regex_ctx}
+
+        # Map each required column to a value
+        row = {}
+        # Potential values from deconstructing job_code template
+        deconstructed_vars = {}
+        if code_reverse_regex:
+            m = code_reverse_regex.match(job_code)
+            if m:
+                deconstructed_vars = m.groupdict()
+
+        for col in all_columns:
+            val = ""
+            if col in name_vars:
+                val = job["name"]
+            elif col in desc_vars:
+                val = job["description"] or ""
+            elif col in deconstructed_vars:
+                val = deconstructed_vars[col]
+            else:
+                # Attempt B: Use [export.columns] if it maps this column name
+                # or just look for a variable with this name in context
+                if col in export_columns_config:
+                    val = _render(export_columns_config[col], full_ctx)
+                elif col in full_ctx:
+                    val = str(full_ctx[col])
+                else:
+                    val = ""
+            row[col] = val
+
+        job_results.append(row)
+
+    with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=all_columns, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(job_results)
+
+    return len(job_results)
