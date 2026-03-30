@@ -643,57 +643,83 @@ class JobCodeModal(ModalScreen):
     BINDINGS = [
         ("escape", "dismiss", "Close"),
         ("q", "dismiss", "Close"),
+        ("t", "toggle_mode", "Toggle Export/Import"),
     ]
 
     def __init__(self, project_name: str, job_name: str, **kwargs):
         super().__init__(**kwargs)
         self.project_name = project_name
         self.job_name = job_name
+        self.mode = "export"  # "export" or "import"
 
     def compose(self) -> ComposeResult:
         """Compose the job code expansion screen widgets."""
         with Container(id="job-code-container"):
-            yield Static(
-                f"Job Code Expansion: {self.job_name}", classes="job-code-title"
-            )
+            yield Static(id="job-code-title", classes="job-code-title")
             yield CopyableDataTable(id="job-code-table")
-            yield Label("[b orange]c[/] copy", classes="copy-hint")
+            yield Label("[b orange]c[/] copy  [b blue]t[/] toggle", classes="copy-hint")
             yield Button("Close", id="btn-close", variant="primary")
 
     def on_mount(self) -> None:
         """Mount handler to populate the job code table."""
+        self.refresh_table()
+
+    def action_toggle_mode(self) -> None:
+        """Toggle between Export and Import display modes."""
+        self.mode = "import" if self.mode == "export" else "export"
+        self.refresh_table()
+
+    def refresh_table(self) -> None:
+        """Update the table content based on the current mode."""
         from . import exporter
 
         table = self.query_one(CopyableDataTable)
+        table.clear(columns=True)
         table.add_columns("Column", "Value")
 
-        try:
-            profile_path = db.DB_DIR / "profile.toml"
-            profile_cfg = exporter.load_profile(str(profile_path))
-            export_config = profile_cfg.get("export", {})
-            compiled_regexes = exporter.get_extract_regexes(export_config)
-            defaults = export_config.get("defaults", {})
-            columns_config = export_config.get("columns", {})
+        title = self.query_one("#job-code-title", Static)
+        mode_label = "(Export Mode)" if self.mode == "export" else "(Import Mode)"
+        title.update(
+            f"Job Code Expansion: {self.job_name} [#79a8a8]{mode_label}[/#79a8a8]"
+        )
 
-            # Find the job to get its code
-            jobs = operations.list_jobs(self.project_name)
-            job = next((j for j in jobs if j["name"] == self.job_name), None)
-            if job:
-                job_code = job["code"] or ""
-                ctx = exporter.extract_fields(job_code, compiled_regexes, defaults)
-                ctx.update(
-                    {
-                        "project_name": self.project_name,
-                        "job_name": self.job_name,
-                        "aggregated_time": "",
-                        "aggregated_notes": "",
-                    }
-                )
-                rendered = exporter.render_columns(columns_config, ctx)
-                for col_name, value in rendered.items():
-                    table.add_row(col_name, value)
+        try:
+            profile_path = str(db.DB_DIR / "profile.toml")
+            if self.mode == "export":
+                profile_cfg = exporter.load_profile(profile_path)
+                export_config = profile_cfg.get("export", {})
+                compiled_regexes = exporter.get_extract_regexes(export_config)
+                defaults = export_config.get("defaults", {})
+                columns_config = export_config.get("columns", {})
+
+                # Find the job to get its code
+                jobs = operations.list_jobs(self.project_name)
+                job = next((j for j in jobs if j["name"] == self.job_name), None)
+                if job:
+                    job_code = job["code"] or ""
+                    ctx = exporter.extract_fields(job_code, compiled_regexes, defaults)
+                    ctx.update(
+                        {
+                            "project_name": self.project_name,
+                            "job_name": self.job_name,
+                            "aggregated_time": "",
+                            "aggregated_notes": "",
+                        }
+                    )
+                    rendered = exporter.render_columns(columns_config, ctx)
+                    for col_name, value in rendered.items():
+                        table.add_row(col_name, value)
+                else:
+                    table.add_row("Error", "Job not found")
             else:
-                table.add_row("Error", "Job not found")
+                # Import mode
+                profile_cfg = exporter.load_profile(profile_path)
+                _, row = exporter.get_job_import_row(
+                    profile_cfg, self.project_name, self.job_name
+                )
+                for col_name, value in row.items():
+                    table.add_row(col_name, value)
+
         except Exception as e:
             table.add_row("Error", str(e))
         table.focus()

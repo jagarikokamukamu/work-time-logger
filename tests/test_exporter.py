@@ -251,7 +251,9 @@ job_code = "{{ 接頭語 }}_{{ 番号 }}_{{ 枝番 }}"
 
     output_path = tmp_path / "jobs_export.csv"
 
-    count = exporter.export_jobs(str(profile_path), str(output_path), project_name="ProjectA")
+    count = exporter.export_jobs(
+        str(profile_path), str(output_path), project_name="ProjectA"
+    )
     assert count == 1
 
     with open(output_path, newline="", encoding="utf-8-sig") as f:
@@ -272,3 +274,32 @@ job_code = "{{ 接頭語 }}_{{ 番号 }}_{{ 枝番 }}"
     assert rows[0]["番号"] == "001"
     assert rows[0]["枝番"] == "SUB"
     assert rows[0]["メモ"] == "desc A1"
+
+
+def test_get_job_import_row(tmp_path: Path):
+    """Test retrieving a single job row in import-compatible format."""
+    operations.add_project("ProjB")
+    operations.add_job("JobB1", "ProjB", "memo B1", "KIND_123_EXT")
+
+    profile_path = tmp_path / "profile_import.toml"
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write(
+            """
+[export.extract]
+job_code = "^(?P<pfx>[A-Z]+)_(?P<n>\\\\d+)_(?P<s>[A-Z]+)$"
+
+[import.mapping]
+name = "{{ 表示名 }}"
+job_code = "{{ pfx }}_{{ n }}_{{ s }}"
+"""
+        )
+
+    profile = exporter.load_profile(str(profile_path))
+    cols, row = exporter.get_job_import_row(profile, "ProjB", "JobB1")
+
+    assert "表示名" in cols
+    assert "pfx" in cols
+    assert row["表示名"] == "JobB1"
+    assert row["pfx"] == "KIND"
+    assert row["n"] == "123"
+    assert row["s"] == "EXT"

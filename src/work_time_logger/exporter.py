@@ -380,6 +380,117 @@ def export_logs(profile_path: str, output_path: str, target_date: str | None = N
     return len(aggregated_results)
 
 
+def _get_import_columns(import_mapping: dict) -> list[str]:
+    """Helper to derive columns from import mapping."""
+
+    def get_vars(template):
+        if not template or not isinstance(template, str):
+            return []
+        return re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
+
+    name_vars = get_vars(import_mapping.get("name", ""))
+    desc_vars = get_vars(import_mapping.get("description", ""))
+    code_vars = get_vars(import_mapping.get("job_code", ""))
+
+    all_columns = []
+    for v in name_vars + desc_vars + code_vars:
+        if v not in all_columns:
+            all_columns.append(v)
+
+    if not all_columns:
+        # Fallback to basic columns if no import mapping is defined
+        all_columns = ["name", "description", "job_code"]
+    return all_columns
+
+
+def get_job_import_row(
+    profile: dict, project_name: str, job_name: str
+) -> tuple[list[str], dict[str, str]]:
+    """Get the rendered import-style row for a single job."""
+    import_mapping = profile.get("import", {}).get("mapping", {})
+    export_config = profile.get("export", {})
+
+    all_columns = _get_import_columns(import_mapping)
+
+    # Find the job
+    jobs = operations.list_jobs(project_name)
+    job = next((j for j in jobs if j["name"] == job_name), None)
+    if not job:
+        return all_columns, dict.fromkeys(all_columns, "")
+
+    job_code = job["code"] or ""
+
+    # Prepare extraction context
+    compiled_regexes = get_extract_regexes(export_config)
+    defaults_config = export_config.get("defaults", {})
+    export_columns_config = export_config.get("columns", {})
+
+    base_ctx = {
+        "project_name": project_name,
+        "job_name": job_name,
+        "name": job_name,
+        "description": job["description"] or "",
+        "job_code": job_code,
+        "aggregated_time": "0.0",
+        "aggregated_notes": "",
+    }
+    regex_ctx = extract_fields(job_code, compiled_regexes, defaults_config)
+    full_ctx = {**base_ctx, **regex_ctx}
+
+    # Reverse regex for job_code deconstruction
+    code_template = import_mapping.get("job_code", "")
+    code_reverse_regex = None
+    if code_template:
+        regex_parts = []
+        parts = re.split(r"(\{\{\s*\w+\s*\}\})", code_template)
+        for p in parts:
+            vm = re.match(r"\{\{\s*(\w+)\s*\}\}", p)
+            if vm:
+                regex_parts.append(f"(?P<{vm.group(1)}>.*)")
+            else:
+                regex_parts.append(re.escape(p))
+        try:
+            code_reverse_regex = re.compile("^" + "".join(regex_parts) + "$")
+        except re.error:
+            pass
+
+    # Reverse lookup deconstructed vars
+    deconstructed_vars = {}
+    if code_reverse_regex:
+        m = code_reverse_regex.match(job_code)
+        if m:
+            deconstructed_vars = m.groupdict()
+
+    # Get vars lists for mapping back
+    def get_vars(template):
+        if not template or not isinstance(template, str):
+            return []
+        return re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
+
+    name_vars = get_vars(import_mapping.get("name", ""))
+    desc_vars = get_vars(import_mapping.get("description", ""))
+
+    row = {}
+    for col in all_columns:
+        val = ""
+        if col in name_vars:
+            val = job_name
+        elif col in desc_vars:
+            val = job["description"] or ""
+        elif col in deconstructed_vars:
+            val = deconstructed_vars[col]
+        else:
+            if col in export_columns_config:
+                val = _render(export_columns_config[col], full_ctx)
+            elif col in full_ctx:
+                val = str(full_ctx[col])
+            else:
+                val = ""
+        row[col] = val
+
+    return all_columns, row
+
+
 def export_jobs(
     profile_path: str, output_path: str, project_name: str | None = None
 ) -> int:
@@ -404,100 +515,16 @@ def export_jobs(
             f.write(DEFAULT_PROFILE_TEMPLATE)
 
     profile = load_profile(profile_path)
-    import_mapping = profile.get("import", {}).get("mapping", {})
-    export_config = profile.get("export", {})
-
-    # 1. Identify columns from import mapping
-    def get_vars(template):
-        if not template or not isinstance(template, str):
-            return []
-        return re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
-
-    name_vars = get_vars(import_mapping.get("name", ""))
-    desc_vars = get_vars(import_mapping.get("description", ""))
-    code_vars = get_vars(import_mapping.get("job_code", ""))
-
-    # Order: name, then description, then job_code variables
-    all_columns = []
-    for v in name_vars + desc_vars + code_vars:
-        if v not in all_columns:
-            all_columns.append(v)
-
-    if not all_columns:
-        # Fallback to basic columns if no import mapping is defined
-        all_columns = ["name", "description", "job_code"]
-
-    # Prepare extraction tools
-    compiled_regexes = get_extract_regexes(export_config)
-    defaults_config = export_config.get("defaults", {})
-    export_columns_config = export_config.get("columns", {})
-
-    # Helper for job_code deconstruction (Attempt A: Reverse mapping)
-    code_template = import_mapping.get("job_code", "")
-    code_reverse_regex = None
-    if code_template:
-        # Convert {{ var }} to (?P<var>.*)
-        regex_parts = []
-        parts = re.split(r"(\{\{\s*\w+\s*\}\})", code_template)
-        for p in parts:
-            vm = re.match(r"\{\{\s*(\w+)\s*\}\}", p)
-            if vm:
-                regex_parts.append(f"(?P<{vm.group(1)}>.*)")
-            else:
-                regex_parts.append(re.escape(p))
-        try:
-            code_reverse_regex = re.compile("^" + "".join(regex_parts) + "$")
-        except re.error:
-            code_reverse_regex = None
+    all_columns = _get_import_columns(profile.get("import", {}).get("mapping", {}))
 
     jobs = operations.list_jobs(project_name)
     job_results = []
 
     for job in jobs:
-        job_code = job["code"] or ""
-        # Context for extraction: first, base fields
-        base_ctx = {
-            "project_name": job["project_name"],
-            "job_name": job["name"],
-            "name": job["name"],
-            "description": job["description"] or "",
-            "job_code": job_code,
-            "aggregated_time": "0.0",  # Default for compatibility
-            "aggregated_notes": "",
-        }
-
-        # Context for regex-based fields (English names usually)
-        regex_ctx = extract_fields(job_code, compiled_regexes, defaults_config)
-        full_ctx = {**base_ctx, **regex_ctx}
-
-        # Map each required column to a value
-        row = {}
-        # Potential values from deconstructing job_code template
-        deconstructed_vars = {}
-        if code_reverse_regex:
-            m = code_reverse_regex.match(job_code)
-            if m:
-                deconstructed_vars = m.groupdict()
-
-        for col in all_columns:
-            val = ""
-            if col in name_vars:
-                val = job["name"]
-            elif col in desc_vars:
-                val = job["description"] or ""
-            elif col in deconstructed_vars:
-                val = deconstructed_vars[col]
-            else:
-                # Attempt B: Use [export.columns] if it maps this column name
-                # or just look for a variable with this name in context
-                if col in export_columns_config:
-                    val = _render(export_columns_config[col], full_ctx)
-                elif col in full_ctx:
-                    val = str(full_ctx[col])
-                else:
-                    val = ""
-            row[col] = val
-
+        # Optimization: We already have the job dict,
+        # but get_job_import_row currently re-lists.
+        # For small numbers of jobs it's fine, but let's be aware.
+        _, row = get_job_import_row(profile, job["project_name"], job["name"])
         job_results.append(row)
 
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
