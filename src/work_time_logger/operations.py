@@ -526,7 +526,7 @@ def list_logs():
             FROM logs
             LEFT JOIN projects ON logs.project_id = projects.id
             LEFT JOIN jobs ON logs.job_id = jobs.id
-            ORDER BY logs.start_time DESC
+            ORDER BY logs.start_time DESC, logs.id DESC
         """)
         return cursor.fetchall()
 

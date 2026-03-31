@@ -429,3 +429,32 @@ async def test_tui_start_while_running():
 
         # Nothing should crash; notification handles it
         assert app.logs_table.row_count > 0
+
+
+@pytest.mark.asyncio
+async def test_tui_restart_job():
+    """Test restarting (cloning) a job from a selected log entry via 'r'."""
+    operations.add_project("RestartProj")
+    operations.add_job("RestartJob", "RestartProj")
+    operations.start_log("RestartProj", "RestartJob")
+    operations.stop_log()  # Complete it
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        app.set_focus(table)
+        table.move_cursor(row=0, column=0)
+
+        # Row 0 is the one we just stopped.
+        # Press 'r' to restart
+        await pilot.press("r")
+        await pilot.pause(0.1)
+
+        # Now there should be 2 rows (the old one and the new one)
+        assert table.row_count == 2
+
+        # The new one should be at the top (row 0) as logs are sorted DESC
+        new_row = table.get_row_at(0)
+        assert new_row[1] == "RestartProj"
+        assert new_row[2] == "RestartJob"
+        assert "Running..." in str(new_row[5])  # End Time column

@@ -364,6 +364,7 @@ class HelpModal(ModalScreen):
                 "\nMain List Focus (Logs):\n"
                 "  enter   : Edit selected cell (Date, Time, Memo, or Duration)\n"
                 "  shift+d : Delete selected log\n"
+                "  r       : Restart (clone) selected job\n"
                 "\nEdit Mode:\n"
                 "  enter   : Save changes\n"
                 "  esc     : Cancel edit\n"

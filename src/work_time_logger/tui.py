@@ -97,6 +97,7 @@ class LogsTable(DataTable):
     BINDINGS = [
         Binding("enter", "select_cursor", "Edit", show=True),
         Binding("D", "app.delete_log", "Delete", show=True),
+        Binding("r", "app.restart_job", "Restart", show=True),
     ]
 
 
@@ -736,6 +737,49 @@ class WtlApp(App):
         inp.can_focus = False
         inp.styles.display = "none"
         self.logs_table.focus()
+
+    def action_restart_job(self) -> None:
+        """Action to restart the job associated with the selected log entry.
+
+        This clones the project and job from the currently highlighted row
+        in the LogsTable and starts a new timer for it.
+        """
+        if self.focused != self.logs_table:
+            return
+        coord = self.logs_table.cursor_coordinate
+        if not coord:
+            return
+        try:
+            cell_key = self.logs_table.coordinate_to_cell_key(coord)
+        except (ValueError, KeyError, IndexError):
+            return
+        if not cell_key or not cell_key.row_key or not cell_key.row_key.value:
+            return
+
+        try:
+            log_id = int(str(cell_key.row_key.value))
+        except (ValueError, TypeError):
+            return
+
+        log_entry = next((entry for entry in self.logs if entry["id"] == log_id), None)
+        if not log_entry:
+            return
+
+        if operations.is_any_job_running():
+            self.notify(
+                "A job is already running! Please stop it first.",
+                severity="error",
+            )
+            return
+
+        project_name = log_entry["project_name"]
+        job_name = log_entry["job_name"]
+
+        try:
+            operations.start_log(project_name, job_name)
+            self.refresh_data()
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
 
     def action_show_help(self) -> None:
         """Action to display the help modal.
