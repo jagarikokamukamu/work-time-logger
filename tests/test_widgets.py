@@ -368,3 +368,62 @@ async def test_daily_summary_date_jump():
         assert inp.styles.display == "block"
         await pilot.press("escape")
         assert inp.styles.display == "none"
+
+
+@pytest.mark.asyncio
+async def test_daily_summary_color_coding():
+    """Test the color coding in DailySummaryModal."""
+    # Setup test data
+    target_date = "2023-10-01"
+    operations.add_project("ProjColor")
+    operations.add_job("Job1", "ProjColor", code="JC-1")
+    operations.add_job("Job2", "ProjColor", code="JC-2")
+
+    # Add logs
+    l1 = operations.start_log("ProjColor", "Job1")
+    operations.update_log(
+        l1,
+        start_time=f"{target_date}T10:00:00",
+        end_time=f"{target_date}T11:00:00"
+    )
+
+    # stop_log() would stop l1 if it was running, but we already updated it.
+    # We need to make sure no job is running before starting another.
+    l2 = operations.start_log("ProjColor", "Job2")
+    operations.update_log(
+        l2,
+        start_time=f"{target_date}T12:00:00",
+        end_time=f"{target_date}T13:00:00"
+    )
+
+    app = DummyApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        modal = DailySummaryModal()
+        modal.target_date = target_date
+        await app.push_screen(modal)
+        await pilot.pause()
+
+        table = modal.query_one(CopyableDataTable)
+        # Check first column is the colored dot
+        # Note: table.columns is a dict-like object
+        cols = list(table.columns.values())
+        assert "●" in str(cols[0].label)
+
+        # Check rows have colors
+        # aggregated_results are sorted, so Job1/Job2 order should be consistent
+        row0 = table.get_row_at(0)
+        row1 = table.get_row_at(1)
+
+        # row[0] is the rich.Text "●"
+        assert "●" in str(row0[0])
+        assert "●" in str(row1[0])
+
+        # Verify visualizer intervals have colors matching the rows
+        from work_time_logger.widgets import TimelineVisualizer
+        viz = modal.query_one(TimelineVisualizer)
+        assert len(viz.intervals) == 2
+        # interval: (start, end, color)
+        # By default, they should have different colors because group_by=['job_name']
+        # (if default profile is used)
+        assert viz.intervals[0][2] != ""
+        assert viz.intervals[1][2] != ""

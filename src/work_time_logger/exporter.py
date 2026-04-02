@@ -353,6 +353,7 @@ def aggregate_logs(
         final_row = render_columns(columns_config, representative_item)
 
         # Preserve metadata for UI/internal use
+        final_row["_group_key"] = _
         final_row["first_start"] = representative_item.get("first_start", "")
         final_row["last_end"] = representative_item.get("last_end", "")
         final_row["aggregated_time"] = representative_item.get("aggregated_time", 0)

@@ -446,14 +446,28 @@ class ExportLogsModal(ModalScreen[tuple[str, str, str]]):
         self.dismiss(None)
 
 
+SUMMARY_COLORS = [
+    "#79a8a8",  # Default Teal
+    "#ff5f5f",  # Red
+    "#5fff5f",  # Green
+    "#5fafff",  # Blue
+    "#ffff5f",  # Yellow
+    "#af5fff",  # Purple
+    "#ffaf5f",  # Orange
+    "#5fffff",  # Cyan
+    "#ff5fff",  # Pink
+    "#d7af00",  # Gold
+]
+
+
 class TimelineVisualizer(Static):
     """A widget that visualizes work intervals on a 0-24h timeline."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.intervals = []  # List of (start_iso, end_iso)
+        self.intervals = []  # List of (start_iso, end_iso, color)
 
-    def set_intervals(self, intervals: list[tuple[str, str]]) -> None:
+    def set_intervals(self, intervals: list[tuple[str, str, str]]) -> None:
         """Update the intervals to display."""
         self.intervals = intervals
         self.refresh()
@@ -464,7 +478,7 @@ class TimelineVisualizer(Static):
         bar_width = 48
         text = Text(" " * bar_width, style="on #2e2e2e")
 
-        for start_iso, end_iso in self.intervals:
+        for start_iso, end_iso, color in self.intervals:
             if not start_iso or not end_iso:
                 continue
             try:
@@ -479,10 +493,11 @@ class TimelineVisualizer(Static):
                 end_idx = int(end_f * (bar_width / 24.0))
 
                 # Highlight the range
+                style = f"on {color}" if color else "on #79a8a8"
                 if end_idx > start_idx:
-                    text.stylize("on #79a8a8", start_idx, end_idx)
+                    text.stylize(style, start_idx, end_idx)
                 elif end_idx == start_idx and start_idx < bar_width:
-                    text.stylize("on #79a8a8", start_idx, start_idx + 1)
+                    text.stylize(style, start_idx, start_idx + 1)
             except (ValueError, TypeError):
                 continue
 
@@ -642,23 +657,53 @@ class DailySummaryModal(ModalScreen):
                 f"Total: [#79a8a8][b]{total_h:.2f}h[/b][/#79a8a8]"
             )
 
-            # Update Visualizer (Phase 4)
-            all_logs = operations.list_logs()
-            intervals = [
-                (log["start_time"], log["end_time"])
-                for log in all_logs
-                if log["start_time"] and log["start_time"][:10] == self.target_date
-            ]
-            viz.set_intervals(intervals)
-
             # Update Table
             col_names = list(columns_config.keys())
+            table.add_column("●", width=2)
             table.add_columns(*[Text(c) for c in col_names])
+
+            # Color assignment based on group key
+            group_to_color = {}
+            for i, row in enumerate(aggregated_results):
+                group_to_color[row["_group_key"]] = SUMMARY_COLORS[
+                    i % len(SUMMARY_COLORS)
+                ]
+
             for row in aggregated_results:
                 row_values = []
+                color = group_to_color[row["_group_key"]]
+                row_values.append(Text("●", style=color))
                 for col in col_names:
                     row_values.append(Text(str(row.get(col, ""))))
                 table.add_row(*row_values)
+
+            all_logs = operations.list_logs()
+            intervals = []
+
+            # For each log, compute its group key to find the corresponding color
+            profile = exporter.load_profile(profile_path)
+            export_config = profile.get("export", {})
+            compiled_regexes = exporter.get_extract_regexes(export_config)
+            defaults_config = export_config.get("defaults", {})
+            group_by_keys = export_config.get("group_by", [])
+
+            for log in all_logs:
+                if (
+                    log["start_time"]
+                    and log["start_time"][:10] == self.target_date
+                    and log["end_time"]
+                ):
+                    # Compute group key using the same logic as exporter
+                    job_code = log["job_code"] or ""
+                    row_data = exporter.extract_fields(
+                        job_code, compiled_regexes, defaults_config
+                    )
+                    group_key = tuple(row_data.get(k, "") for k in group_by_keys)
+
+                    color = group_to_color.get(group_key, "#79a8a8")
+                    intervals.append((log["start_time"], log["end_time"], color))
+
+            viz.set_intervals(intervals)
 
         except Exception as e:
             info_text.update(f"[red]Error: {e}[/red]")
