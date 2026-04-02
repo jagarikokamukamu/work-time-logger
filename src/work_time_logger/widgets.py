@@ -49,7 +49,6 @@ class CopyableDataTable(DataTable):
                 text = str(val)
 
             self.app.copy_to_clipboard(text)
-            self.app.notify("クリップボードにコピーしました", title="Copied")
         except Exception as e:
             self.app.notify(f"コピーに失敗しました: {e}", severity="error")
 
@@ -447,6 +446,53 @@ class ExportLogsModal(ModalScreen[tuple[str, str, str]]):
         self.dismiss(None)
 
 
+class TimelineVisualizer(Static):
+    """A widget that visualizes work intervals on a 0-24h timeline."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.intervals = []  # List of (start_iso, end_iso)
+
+    def set_intervals(self, intervals: list[tuple[str, str]]) -> None:
+        """Update the intervals to display."""
+        self.intervals = intervals
+        self.refresh()
+
+    def render(self) -> Text:
+        """Render the 24-hour timeline bar."""
+        # 0 to 24 hours, 2 characters per hour = 48 chars wide
+        bar_width = 48
+        text = Text(" " * bar_width, style="on #2e2e2e")
+
+        for start_iso, end_iso in self.intervals:
+            if not start_iso or not end_iso:
+                continue
+            try:
+                s = datetime.fromisoformat(start_iso)
+                e = datetime.fromisoformat(end_iso)
+
+                # Map time to 0.0-24.0 range
+                start_f = s.hour + s.minute / 60.0 + s.second / 3600.0
+                end_f = e.hour + e.minute / 60.0 + e.second / 3600.0
+
+                start_idx = int(start_f * (bar_width / 24.0))
+                end_idx = int(end_f * (bar_width / 24.0))
+
+                # Highlight the range
+                if end_idx > start_idx:
+                    text.stylize("on #79a8a8", start_idx, end_idx)
+                elif end_idx == start_idx and start_idx < bar_width:
+                    text.stylize("on #79a8a8", start_idx, start_idx + 1)
+            except (ValueError, TypeError):
+                continue
+
+        ruler_str = (
+            "0" + " " * 10 + "6" + " " * 11 + "12" + " " * 11 + "18" + " " * 9 + "24"
+        )
+        ruler = Text("\n" + ruler_str, style="#585858")
+        return text + ruler
+
+
 class DailySummaryModal(ModalScreen):
     """A modal screen that displays an aggregated summary of work per day."""
 
@@ -456,8 +502,8 @@ class DailySummaryModal(ModalScreen):
         background: rgba(0, 0, 0, 0.7);
     }
     #summary-container {
-        width: 90%;
-        height: 80%;
+        width: 80;
+        height: 32;
         padding: 1 2;
         background: $surface;
         border: thick $primary;
@@ -468,6 +514,32 @@ class DailySummaryModal(ModalScreen):
         text-style: bold;
         margin-bottom: 1;
     }
+    #summary-header {
+        height: 3;
+        margin: 0 1;
+        content-align: center middle;
+        border: solid $accent;
+        background: $boost;
+    }
+    #header-date-text {
+        width: 12;
+        text-style: bold;
+        color: yellow;
+        content-align: center middle;
+    }
+    #header-info-text {
+        width: 1fr;
+        content-align: center middle;
+    }
+    #summary-visualizer {
+        height: 4;
+        margin-top: 1;
+        content-align: center middle;
+    }
+    #summary-table {
+        height: 1fr;
+        margin-top: 1;
+    }
     .copy-hint {
         content-align: right middle;
         width: 100%;
@@ -475,49 +547,147 @@ class DailySummaryModal(ModalScreen):
         opacity: 0.8;
         margin-top: 1;
     }
+    #date-input-overlay {
+        display: none;
+        position: absolute;
+    }
     """
 
     BINDINGS = [
         ("escape", "dismiss", "Close"),
         ("q", "dismiss", "Close"),
+        ("left", "prev_day", "Prev Day"),
+        ("right", "next_day", "Next Day"),
+        ("[", "prev_day", "Prev Day"),
+        ("]", "next_day", "Next Day"),
+        ("C", "copy_report", "Copy Report"),
     ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.target_date = datetime.now().strftime("%Y-%m-%d")
 
     def compose(self) -> ComposeResult:
         """Compose the summary screen widgets."""
         with Container(id="summary-container"):
             yield Static("Daily Work Summary", classes="summary-title")
+            with Horizontal(id="summary-header"):
+                yield Static(self.target_date, id="header-date-text")
+                yield Static("", id="header-info-text")
+
+            yield TimelineVisualizer(id="summary-visualizer")
             yield CopyableDataTable(id="summary-table")
-            yield Label("[b orange]c[/] copy", classes="copy-hint")
+            yield Label(
+                r"[b orange]c[/] copy  [b orange]C[/] copy report  "
+                r"[b orange]\[[/] [b orange]][/] navigate",
+                classes="copy-hint",
+            )
 
     def on_mount(self) -> None:
-        """Mount handler to populate the summary table."""
+        """Mount handler to populate the summary data."""
+        self.refresh_summary()
+        self.query_one("#summary-table").focus()
+
+    def refresh_summary(self) -> None:
+        """Refresh all summary data for the current target_date."""
         from . import exporter
 
         table = self.query_one(CopyableDataTable)
+        date_text = self.query_one("#header-date-text", Static)
+        info_text = self.query_one("#header-info-text", Static)
+        viz = self.query_one(TimelineVisualizer)
+
+        date_text.update(self.target_date)
+        table.clear(columns=True)
 
         try:
-            from rich.text import Text
-
             profile_path = str(db.DB_DIR / "profile.toml")
             columns_config, aggregated_results = exporter.aggregate_logs(
-                profile_path, target_date=None, group_by_date=True
+                profile_path, target_date=self.target_date, group_by_date=False
             )
 
-            # Setup columns: Date + configured CSV columns
-            col_names = ["Date"] + list(columns_config.keys())
-            table.add_columns(*[Text(c) for c in col_names])
+            if not aggregated_results:
+                info_text.update("[yellow]No logs found[/yellow]")
+                viz.set_intervals([])
+                table.add_columns("Status")
+                table.add_row("No data")
+                return
 
+            starts = [
+                r.get("first_start") for r in aggregated_results if r.get("first_start")
+            ]
+            ends = [r.get("last_end") for r in aggregated_results if r.get("last_end")]
+
+            first_s = min(starts) if starts else ""
+            last_e = max(ends) if ends else ""
+            total_h = sum(
+                float(r.get("aggregated_time", 0)) for r in aggregated_results
+            )
+
+            def fmt_t(iso_str):
+                if not iso_str:
+                    return "--:--"
+                return iso_str[11:16]
+
+            info_text.update(
+                f"Start: [b]{fmt_t(first_s)}[/]  End: [b]{fmt_t(last_e)}[/]  "
+                f"Total: [#79a8a8][b]{total_h:.2f}h[/b][/#79a8a8]"
+            )
+
+            # Update Visualizer (Phase 4)
+            all_logs = operations.list_logs()
+            intervals = [
+                (log["start_time"], log["end_time"])
+                for log in all_logs
+                if log["start_time"] and log["start_time"][:10] == self.target_date
+            ]
+            viz.set_intervals(intervals)
+
+            # Update Table
+            col_names = list(columns_config.keys())
+            table.add_columns(*[Text(c) for c in col_names])
             for row in aggregated_results:
-                row_values = [Text(str(row.get("_date", "")))]
-                for col in columns_config.keys():
+                row_values = []
+                for col in col_names:
                     row_values.append(Text(str(row.get(col, ""))))
                 table.add_row(*row_values)
 
         except Exception as e:
+            info_text.update(f"[red]Error: {e}[/red]")
             table.add_columns("Error")
-            table.add_row(f"Failed to load summary: {e}")
+            table.add_row(str(e))
 
-        table.focus()
+    def action_prev_day(self) -> None:
+        """Move to the previous day."""
+        from datetime import timedelta
+
+        dt = datetime.fromisoformat(self.target_date)
+        self.target_date = (dt - timedelta(days=1)).strftime("%Y-%m-%d")
+        self.refresh_summary()
+
+    def action_next_day(self) -> None:
+        """Move to the next day."""
+        from datetime import timedelta
+
+        dt = datetime.fromisoformat(self.target_date)
+        self.target_date = (dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        self.refresh_summary()
+
+    def action_copy_report(self) -> None:
+        """Copy the summary as a formatted text report."""
+        table = self.query_one(CopyableDataTable)
+        col_names = [str(c.label) for c in table.columns.values()]
+
+        report_lines = [f"Daily Work Report: {self.target_date}", ""]
+        for row_key in table.rows:
+            row_vals = table.get_row(row_key)
+            line_parts = []
+            for name, val in zip(col_names, row_vals, strict=False):
+                line_parts.append(f"{name}: {val}")
+            report_lines.append("- " + " | ".join(line_parts))
+
+        report_text = "\n".join(report_lines)
+        self.app.copy_to_clipboard(report_text)
 
     @on(DataTable.CellSelected, "#summary-table")
     def on_cell_selected(self, event: DataTable.CellSelected) -> None:
