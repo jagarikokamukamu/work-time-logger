@@ -99,7 +99,7 @@ async def test_help_modal():
 async def test_confirm_delete_modal():
     """Test ConfirmDeleteModal actions."""
     app = DummyApp()
-    async with app.run_test(size=(120, 60)) as pilot:
+    async with app.run_test(size=(120, 60)) as _:
         modal = ConfirmDeleteModal()
         # Mock dismiss to check return value
         result = None
@@ -179,7 +179,7 @@ async def test_export_logs_modal():
 async def test_overlay_input():
     """Test OverlayInput standalone adjustment without full TUI."""
     app = DummyApp()
-    async with app.run_test() as pilot:
+    async with app.run_test() as _:
         overlay = app.query_one(OverlayInput)
 
         # Test duration mode increment
@@ -201,7 +201,7 @@ async def test_overlay_input():
 async def test_overlay_input_extended():
     """Test OverlayInput in date and time modes."""
     app = DummyApp()
-    async with app.run_test() as pilot:
+    async with app.run_test() as _:
         overlay = app.query_one(OverlayInput)
 
         # Test date mode
@@ -332,3 +332,39 @@ async def test_job_code_modal_editing_logic(tmp_path: Path):
         assert job is not None
         assert job["code"] == "JC-K-456"
         assert job["description"] == "Fixed Desc"
+
+
+@pytest.mark.asyncio
+async def test_daily_summary_date_jump():
+    """Test the date jump feature in DailySummaryModal."""
+    app = DummyApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        modal = DailySummaryModal()
+        await app.push_screen(modal)
+        await pilot.pause()
+
+        # Initial date check
+        from datetime import date
+        today_str = date.today().isoformat()
+        assert modal.target_date == today_str
+
+        # Press '/' to show input
+        await pilot.press("/")
+        inp = modal.query_one("#date-input-overlay", Input)
+        assert inp.styles.display == "block"
+        assert inp.has_focus
+
+        # Input a new date and submit
+        await pilot.press(*"2025-01-01")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Check if date updated and input hidden
+        assert modal.target_date == "2025-01-01"
+        assert inp.styles.display == "none"
+
+        # Test escape to cancel
+        await pilot.press("/")
+        assert inp.styles.display == "block"
+        await pilot.press("escape")
+        assert inp.styles.display == "none"

@@ -180,3 +180,38 @@ def test_update_log_preserves_duration(setup_test_db):
     updated_logs = operations.list_logs()
     assert updated_logs[0]["duration_hours"] == 5.5
     assert updated_logs[0]["memo"] == "Updated Memo"
+
+
+def test_parse_smart_date():
+    from datetime import date, timedelta
+    today = date.today()
+
+    # Static keywords
+    assert operations.parse_smart_date("today") == today.isoformat()
+    expected_yest = (today - timedelta(days=1)).isoformat()
+    assert operations.parse_smart_date("yesterday") == expected_yest
+    assert operations.parse_smart_date("yest") == expected_yest
+
+    # Relative days
+    assert operations.parse_smart_date("+1") == (today + timedelta(days=1)).isoformat()
+    assert operations.parse_smart_date("-2") == (today - timedelta(days=2)).isoformat()
+
+    # M/D or M-D
+    expected_3_26 = date(today.year, 3, 26).isoformat()
+    assert operations.parse_smart_date("3/26") == expected_3_26
+    assert operations.parse_smart_date("03-26") == expected_3_26
+    assert operations.parse_smart_date("3.26") == expected_3_26
+
+    # MMDD
+    assert operations.parse_smart_date("0326") == expected_3_26
+
+    # D or DD (current month)
+    expected_15 = date(today.year, today.month, 15).isoformat()
+    assert operations.parse_smart_date("15") == expected_15
+
+    # ISO fallback
+    assert operations.parse_smart_date("2023-12-25") == "2023-12-25"
+
+    # Invalid
+    assert operations.parse_smart_date("invalid") is None
+    assert operations.parse_smart_date("13/32") is None  # Invalid day
