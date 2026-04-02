@@ -226,6 +226,8 @@ def aggregate_logs(
         row_data["memo"] = log["memo"] or ""
         row_data["project_name"] = log["project_name"] or ""
         row_data["job_name"] = log["job_name"] or ""
+        row_data["start_time"] = log["start_time"] or ""
+        row_data["end_time"] = log["end_time"] or ""
 
         if group_by_date:
             row_data["_date"] = log["start_time"][:10] if log["start_time"] else ""
@@ -291,6 +293,11 @@ def aggregate_logs(
                         "_raw_time_hours",
                         "time_hours",
                         "_sum_of_rounded_hours",
+                        "start_time",
+                        "end_time",
+                        "_date",
+                        "first_start",
+                        "last_end",
                     )
                 )
             )
@@ -324,12 +331,31 @@ def aggregate_logs(
 
         aggregated_notes = note_separator.join(notes)
 
+        # Calculate first start and last end for the group
+        # Fix: handle potential None or empty strings
+        start_isos = [
+            item.get("start_time") for item in group_items if item.get("start_time")
+        ]
+        end_isos = [
+            item.get("end_time") for item in group_items if item.get("end_time")
+        ]
+
+        first_start = min(start_isos) if start_isos else ""
+        last_end = max(end_isos) if end_isos else ""
+
         representative_item = group_items[0].copy()
         representative_item["aggregated_time"] = agg_time
         representative_item["aggregated_notes"] = aggregated_notes
+        representative_item["first_start"] = first_start
+        representative_item["last_end"] = last_end
 
         # Map to final columns using Jinja2
         final_row = render_columns(columns_config, representative_item)
+
+        # Preserve metadata for UI/internal use
+        final_row["first_start"] = representative_item.get("first_start", "")
+        final_row["last_end"] = representative_item.get("last_end", "")
+        final_row["aggregated_time"] = representative_item.get("aggregated_time", 0)
 
         if group_by_date:
             final_row["_date"] = representative_item.get("_date", "")
