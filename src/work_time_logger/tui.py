@@ -1,7 +1,7 @@
 """Textual user interface for Work Time Logger."""
 
 import traceback
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from enum import IntEnum
 from functools import partial
 
@@ -572,62 +572,64 @@ class WtlApp(App):
             # Smart parsing for time input: HH:mm, H:mm, H:m, HHMM, or H
             import re
 
-            def parse_smart_time(s: str) -> str | None:
-                """Parse common time input strings into HH:mm."""
+            def parse_smart_time(s: str) -> tuple[str, int] | None:
+                """Parse common time input strings into (HH:mm, day_offset)."""
                 s = s.strip().replace(".", ":")
+                h, mn = -1, -1
+
                 # Handle H:M or HH:MM
                 m_sep = re.match(r"^(\d{1,2}):(\d{1,2})$", s)
                 if m_sep:
                     h, mn = int(m_sep.group(1)), int(m_sep.group(2))
-                    if 0 <= h < 24 and 0 <= mn < 60:
-                        return f"{h:02}:{mn:02}"
-                    return None
-
-                # Handle HMM or HHMM
-                m_num = re.match(r"^(\d{3,4})$", s)
-                if m_num:
-                    sn = m_num.group(1)
-                    if len(sn) == 3:
-                        h, mn = int(sn[0]), int(sn[1:])
+                else:
+                    # Handle HMM or HHMM
+                    m_num = re.match(r"^(\d{3,4})$", s)
+                    if m_num:
+                        sn = m_num.group(1)
+                        if len(sn) == 3:
+                            h, mn = int(sn[0]), int(sn[1:])
+                        else:
+                            h, mn = int(sn[:2]), int(sn[2:])
                     else:
-                        h, mn = int(sn[:2]), int(sn[2:])
-                    if 0 <= h < 24 and 0 <= mn < 60:
-                        return f"{h:02}:{mn:02}"
-                    return None
+                        # Handle H or HH
+                        m_h = re.match(r"^(\d{1,2})$", s)
+                        if m_h:
+                            h, mn = int(m_h.group(1)), 0
+                        else:
+                            # Fallback: Try full ISO parse
+                            try:
+                                dt = datetime.fromisoformat(s.replace(" ", "T"))
+                                return dt.strftime("%H:%M"), 0
+                            except ValueError:
+                                return None
 
-                # Handle H or HH
-                m_h = re.match(r"^(\d{1,2})$", s)
-                if m_h:
-                    h = int(m_h.group(1))
-                    if 0 <= h < 24:
-                        return f"{h:02}:00"
-                    return None
+                if 0 <= h < 100 and 0 <= mn < 60:
+                    offset = h // 24
+                    h = h % 24
+                    return f"{h:02}:{mn:02}", offset
+                return None
 
-                # Fallback: Try full ISO parse
-                try:
-                    dt = datetime.fromisoformat(s.replace(" ", "T"))
-                    return dt.strftime("%H:%M")
-                except ValueError:
-                    return None
-
-            smart_val = parse_smart_time(val)
-            if smart_val is None:
+            smart_res = parse_smart_time(val)
+            if smart_res is None:
                 self.notify(
-                    "Error: Invalid time format. Examples: 09:30, 9:30, 9:5, 0905, 18",
+                    "Error: Invalid time format. "
+                    "Examples: 09:30, 9:30, 25:00, 0905, 18",
                     severity="error",
                 )
                 return
 
-            val = smart_val
+            val, day_offset = smart_res
 
             # Cross-validation: start <= end
             current_log = self._editing_log_entry
-            log_ref = current_log["end_time"] or current_log["start_time"]
-            new_val = f"{log_ref[:10]}T{val}:00"
+            # Target date is calculated from the log's start date
+            base_date = date.fromisoformat(current_log["start_time"][:10])
+            target_date = base_date + timedelta(days=day_offset)
+            val = f"{target_date.isoformat()}T{val}:00"
 
             try:
-                if self._editing_col_index == 4:  # Start Time
-                    st = datetime.fromisoformat(new_val)
+                if self._editing_col_index == LogColumn.START_TIME:
+                    st = datetime.fromisoformat(val)
                     if current_log["end_time"]:
                         et = datetime.fromisoformat(current_log["end_time"])
                         if et < st:
@@ -635,8 +637,8 @@ class WtlApp(App):
                                 "Start time cannot be after end time.", severity="error"
                             )
                             return
-                elif self._editing_col_index == 5:  # End Time
-                    et = datetime.fromisoformat(new_val)
+                elif self._editing_col_index == LogColumn.END_TIME:
+                    et = datetime.fromisoformat(val)
                     st = datetime.fromisoformat(current_log["start_time"])
                     if et < st:
                         self.notify(
@@ -662,9 +664,9 @@ class WtlApp(App):
                     new_end_iso = None
                     if old_end_iso:
                         old_end_dt = datetime.fromisoformat(old_end_iso)
-                        day_offset = old_end_dt.date() - old_start_dt.date()
+                        day_offset_val = old_end_dt.date() - old_start_dt.date()
                         new_end_dt = datetime.combine(
-                            new_date_obj + day_offset, old_end_dt.time()
+                            new_date_obj + day_offset_val, old_end_dt.time()
                         )
                         new_end_iso = new_end_dt.isoformat()
 
@@ -676,19 +678,10 @@ class WtlApp(App):
                 except (ValueError, TypeError):
                     self.notify("Error updating date.", severity="error")
         elif self._editing_col_index == LogColumn.START_TIME:
-            # Start Time
-            if len(val) == 5 and ":" in val:  # HH:mm
-                current_date = self._editing_log_entry["start_time"][:10]
-                val = f"{current_date}T{val}:00"
+            # Start Time (val is already ISO string if edit_mode was time_only)
             self._update_start_time(self._editing_log_entry, val)
         elif self._editing_col_index == LogColumn.END_TIME:
-            # End Time
-            if len(val) == 5 and ":" in val:  # HH:mm
-                current_date = (
-                    self._editing_log_entry["end_time"]
-                    or self._editing_log_entry["start_time"]
-                )[:10]
-                val = f"{current_date}T{val}:00"
+            # End Time (val is already ISO string if edit_mode was time_only)
             self._update_end_time(self._editing_log_entry, val)
         elif self._editing_col_index == LogColumn.DURATION:
             # duration_hours

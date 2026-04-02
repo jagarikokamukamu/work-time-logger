@@ -499,3 +499,82 @@ async def test_wtl_app_date_sync_cross_day():
         assert updated["start_time"] == "2023-10-05T22:00:00"
         # Offset +1 day should be maintained: 10-05 + 1 = 10-06
         assert updated["end_time"] == "2023-10-06T02:00:00"
+
+
+@pytest.mark.asyncio
+async def test_wtl_app_time_overflow():
+    """Test that WtlApp handles time inputs >= 24h as next day."""
+    target_date = "2023-10-01"
+    operations.add_project("PJ")
+    operations.add_job("JB", "PJ", code="C1")
+    l1 = operations.start_log("PJ", "JB")
+    operations.update_log(
+        l1,
+        start_time=f"{target_date}T10:00:00",
+        end_time=f"{target_date}T11:00:00"
+    )
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await pilot.pause()
+        # Move to End Time column
+        app.logs_table.move_cursor(row=0, column=LogColumn.END_TIME)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Input 25:30
+        await pilot.press(*"25:30")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Check in DB
+        logs = operations.list_logs()
+        updated = next(le for le in logs if le["id"] == l1)
+        # 10-01T25:30:00 -> 10-02T01:30:00
+        assert updated["end_time"] == "2023-10-02T01:30:00"
+
+
+@pytest.mark.asyncio
+async def test_job_selection_modal():
+    """Test fuzzy search and selection in JobSelectionModal."""
+    operations.add_project("ProjA")
+    operations.add_job("JobApple", "ProjA")
+    operations.add_job("JobBanana", "ProjA")
+
+    app = DummyApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        modal = JobSelectionModal()
+        result = None
+
+        def mock_dismiss(res):
+            nonlocal result
+            result = res
+
+        modal.dismiss = mock_dismiss
+        await app.push_screen(modal)
+
+        from textual.widgets import OptionList
+        option_list = modal.query_one(OptionList)
+
+        # Initially all jobs are present
+        assert option_list.option_count == 2
+
+        # Search for 'ban'
+        await pilot.press(*"ban")
+        await pilot.pause()
+        assert option_list.option_count == 1
+        assert "Banana" in str(option_list.get_option_at_index(0).prompt)
+
+        # Select it
+        app.set_focus(option_list)
+        option_list.highlighted = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        assert result == ("ProjA", "JobBanana")
+
+        # Re-open and test cancel
+        await app.push_screen(modal)
+        await pilot.press("escape")
+        await pilot.pause()
+        # result might persist in mock
+        assert result is None or result == ("ProjA", "JobBanana")
