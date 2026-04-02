@@ -7,6 +7,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Input
 
 from work_time_logger import db, operations
+from work_time_logger.tui import LogColumn, WtlApp
 from work_time_logger.widgets import (
     ConfirmDeleteModal,
     CopyableDataTable,
@@ -427,3 +428,74 @@ async def test_daily_summary_color_coding():
         # (if default profile is used)
         assert viz.intervals[0][2] != ""
         assert viz.intervals[1][2] != ""
+
+
+@pytest.mark.asyncio
+async def test_wtl_app_date_sync():
+    """Test that WtlApp updates both start and end time dates in sync."""
+    target_date = "2023-10-01"
+    operations.add_project("PJ")
+    operations.add_job("JB", "PJ", code="C1")
+    l1 = operations.start_log("PJ", "JB")
+    # Exact 1 hour on the same day
+    operations.update_log(
+        l1,
+        start_time=f"{target_date}T10:00:00",
+        end_time=f"{target_date}T11:00:00"
+    )
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await pilot.pause()
+        # Find the row for l1
+        # Click on the Date column (LogColumn.DATE)
+        # Coordinate calculation might be tricky,
+        # but row 0 should be it since it's the only one
+        app.logs_table.move_cursor(row=0, column=LogColumn.DATE)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Input new date
+        await pilot.press(*"2023-10-05")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Check in DB
+        logs = operations.list_logs()
+        updated = next(le for le in logs if le["id"] == l1)
+        assert updated["start_time"] == "2023-10-05T10:00:00"
+        assert updated["end_time"] == "2023-10-05T11:00:00"
+
+
+@pytest.mark.asyncio
+async def test_wtl_app_date_sync_cross_day():
+    """Test that WtlApp preserves day offset when updating date."""
+    target_date = "2023-10-01"
+    operations.add_project("PJ")
+    operations.add_job("JB", "PJ", code="C1")
+    l1 = operations.start_log("PJ", "JB")
+    # Ends on the next day (02:00)
+    operations.update_log(
+        l1,
+        start_time=f"{target_date}T22:00:00",
+        end_time="2023-10-02T02:00:00"
+    )
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await pilot.pause()
+        app.logs_table.move_cursor(row=0, column=LogColumn.DATE)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Input new date: move forward by 4 days
+        await pilot.press(*"2023-10-05")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Check in DB
+        logs = operations.list_logs()
+        updated = next(le for le in logs if le["id"] == l1)
+        assert updated["start_time"] == "2023-10-05T22:00:00"
+        # Offset +1 day should be maintained: 10-05 + 1 = 10-06
+        assert updated["end_time"] == "2023-10-06T02:00:00"

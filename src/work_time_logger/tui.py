@@ -1,7 +1,7 @@
 """Textual user interface for Work Time Logger."""
 
 import traceback
-from datetime import datetime
+from datetime import date, datetime
 from enum import IntEnum
 from functools import partial
 
@@ -648,11 +648,33 @@ class WtlApp(App):
                 pass
 
         if self._editing_col_index == LogColumn.DATE:
-            # Update date of start_time
+            # Update date of both start_time and end_time (preserving multi-day offset)
             if len(val) == 10:
-                current_start = self._editing_log_entry["start_time"]
-                new_start = val + current_start[10:]
-                self._update_start_time(self._editing_log_entry, new_start)
+                try:
+                    new_date_obj = date.fromisoformat(val)
+                    old_start_iso = self._editing_log_entry["start_time"]
+                    old_end_iso = self._editing_log_entry["end_time"]
+
+                    old_start_dt = datetime.fromisoformat(old_start_iso)
+                    new_start_dt = datetime.combine(new_date_obj, old_start_dt.time())
+                    new_start_iso = new_start_dt.isoformat()
+
+                    new_end_iso = None
+                    if old_end_iso:
+                        old_end_dt = datetime.fromisoformat(old_end_iso)
+                        day_offset = old_end_dt.date() - old_start_dt.date()
+                        new_end_dt = datetime.combine(
+                            new_date_obj + day_offset, old_end_dt.time()
+                        )
+                        new_end_iso = new_end_dt.isoformat()
+
+                    self._commit_log_update(
+                        self._editing_log_entry,
+                        start_time=new_start_iso,
+                        end_time=new_end_iso,
+                    )
+                except (ValueError, TypeError):
+                    self.notify("Error updating date.", severity="error")
         elif self._editing_col_index == LogColumn.START_TIME:
             # Start Time
             if len(val) == 5 and ":" in val:  # HH:mm
