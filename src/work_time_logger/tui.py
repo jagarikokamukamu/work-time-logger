@@ -559,61 +559,7 @@ class WtlApp(App):
         val = event.value.strip()
         inp = event.control
         if inp.edit_mode == "date_only":
-            import re
-            from datetime import date, timedelta
-
-            def parse_smart_date(s: str) -> str | None:
-                """Parse common date input strings into YYYY-MM-DD."""
-                s = s.strip().lower()
-                today = date.today()
-
-                if s == "today":
-                    return today.isoformat()
-                if s in ("yesterday", "yest"):
-                    return (today - timedelta(days=1)).isoformat()
-
-                # Handle relative +/- days: +1, -2
-                m_rel = re.match(r"^([+-])(\d+)$", s)
-                if m_rel:
-                    delta = int(m_rel.group(2))
-                    if m_rel.group(1) == "-":
-                        delta = -delta
-                    return (today + timedelta(days=delta)).isoformat()
-
-                # Handle M/D or M-D or M.D
-                m_md = re.match(r"^(\d{1,2})[/.-](\d{1,2})$", s)
-                if m_md:
-                    m, d = int(m_md.group(1)), int(m_md.group(2))
-                    try:
-                        return date(today.year, m, d).isoformat()
-                    except ValueError:
-                        return None
-
-                # Handle MMDD
-                m_mmdd = re.match(r"^(\d{4})$", s)
-                if m_mmdd:
-                    m, d = int(s[:2]), int(s[2:])
-                    try:
-                        return date(today.year, m, d).isoformat()
-                    except ValueError:
-                        return None
-
-                # Handle D or DD
-                m_d = re.match(r"^(\d{1,2})$", s)
-                if m_d:
-                    d = int(s)
-                    try:
-                        return date(today.year, today.month, d).isoformat()
-                    except ValueError:
-                        return None
-
-                # ISO YYYY-MM-DD fallback
-                try:
-                    return date.fromisoformat(s).isoformat()
-                except ValueError:
-                    return None
-
-            smart_date = parse_smart_date(val)
+            smart_date = operations.parse_smart_date(val)
             if smart_date is None:
                 self.notify(
                     "Error: Invalid date format. "

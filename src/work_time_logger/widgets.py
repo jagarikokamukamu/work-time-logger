@@ -549,7 +549,13 @@ class DailySummaryModal(ModalScreen):
     }
     #date-input-overlay {
         display: none;
-        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: $boost;
+        color: yellow;
+        text-style: bold;
+        border: none;
+        content-align: center middle;
     }
     """
 
@@ -561,6 +567,7 @@ class DailySummaryModal(ModalScreen):
         ("[", "prev_day", "Prev Day"),
         ("]", "next_day", "Next Day"),
         ("C", "copy_report", "Copy Report"),
+        ("/", "show_date_input", "Jump to Date"),
     ]
 
     def __init__(self, **kwargs):
@@ -574,12 +581,13 @@ class DailySummaryModal(ModalScreen):
             with Horizontal(id="summary-header"):
                 yield Static(self.target_date, id="header-date-text")
                 yield Static("", id="header-info-text")
+                yield Input(placeholder="YYYY-MM-DD", id="date-input-overlay")
 
             yield TimelineVisualizer(id="summary-visualizer")
             yield CopyableDataTable(id="summary-table")
             yield Label(
                 r"[b orange]c[/] copy  [b orange]C[/] copy report  "
-                r"[b orange]\[[/] [b orange]][/] navigate",
+                r"[b orange]\[[/] [b orange]][/] navigate  [b orange]/[/] jump",
                 classes="copy-hint",
             )
 
@@ -693,6 +701,46 @@ class DailySummaryModal(ModalScreen):
     def on_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Stop event bubbling to prevent crashes in the main app."""
         event.stop()
+
+    def action_show_date_input(self) -> None:
+        """Show the date input field for direct jumping."""
+        self.query_one("#header-date-text").styles.display = "none"
+        self.query_one("#header-info-text").styles.display = "none"
+        inp = self.query_one("#date-input-overlay", Input)
+        inp.value = self.target_date
+        inp.styles.display = "block"
+        inp.focus()
+
+    @on(Input.Submitted, "#date-input-overlay")
+    def on_date_submitted(self, event: Input.Submitted) -> None:
+        """Handle date input submission."""
+        event.stop()
+        val = event.value.strip()
+        smart_date = operations.parse_smart_date(val)
+
+        if smart_date:
+            self.target_date = smart_date
+            self.refresh_summary()
+            self._close_date_input()
+        else:
+            self.app.notify(f"Invalid date: {val}", severity="error")
+
+    def _close_date_input(self) -> None:
+        """Hide the date input and return focus to the table."""
+        self.query_one("#date-input-overlay", Input).styles.display = "none"
+        self.query_one("#header-date-text").styles.display = "block"
+        self.query_one("#header-info-text").styles.display = "block"
+        self.query_one("#summary-table").focus()
+
+    def on_key(self, event) -> None:
+        """Handle specific keys in the modal, especially for cancelling input."""
+        if event.key == "escape":
+            inp = self.query_one("#date-input-overlay", Input)
+            if inp.styles.display == "block":
+                event.stop()
+                self._close_date_input()
+                return
+        # Allow default ModalScreen behavior if not handled
 
 
 class FilterModal(ModalScreen):

@@ -1,7 +1,8 @@
 """Core business logic and database operations for Work Time Logger."""
 
 import csv
-from datetime import datetime
+import re
+from datetime import date, datetime, timedelta
 
 from jinja2 import Environment, Undefined
 
@@ -10,6 +11,65 @@ from .db import get_connection, init_db
 # Security: Enable autoescape to prevent XSS (Bandit B701)
 # Use a silent Undefined so missing vars render as empty string
 _jinja_env = Environment(undefined=Undefined, autoescape=True)
+
+
+def parse_smart_date(s: str) -> str | None:
+    """Parse common date input strings into YYYY-MM-DD.
+
+    Args:
+        s (str): The date string to parse.
+
+    Returns:
+        str | None: The parsed date in ISO format (YYYY-MM-DD) or None if invalid.
+    """
+    s = s.strip().lower()
+    today = date.today()
+
+    if s == "today":
+        return today.isoformat()
+    if s in ("yesterday", "yest"):
+        return (today - timedelta(days=1)).isoformat()
+
+    # Handle relative +/- days: +1, -2
+    m_rel = re.match(r"^([+-])(\d+)$", s)
+    if m_rel:
+        delta = int(m_rel.group(2))
+        if m_rel.group(1) == "-":
+            delta = -delta
+        return (today + timedelta(days=delta)).isoformat()
+
+    # Handle M/D or M-D or M.D
+    m_md = re.match(r"^(\d{1,2})[/.-](\d{1,2})$", s)
+    if m_md:
+        m, d = int(m_md.group(1)), int(m_md.group(2))
+        try:
+            return date(today.year, m, d).isoformat()
+        except ValueError:
+            return None
+
+    # Handle MMDD
+    m_mmdd = re.match(r"^(\d{4})$", s)
+    if m_mmdd:
+        m, d = int(s[:2]), int(s[2:])
+        try:
+            return date(today.year, m, d).isoformat()
+        except ValueError:
+            return None
+
+    # Handle D or DD
+    m_d = re.match(r"^(\d{1,2})$", s)
+    if m_d:
+        d = int(s)
+        try:
+            return date(today.year, today.month, d).isoformat()
+        except ValueError:
+            return None
+
+    # ISO YYYY-MM-DD fallback
+    try:
+        return date.fromisoformat(s).isoformat()
+    except ValueError:
+        return None
 
 
 def setup():
