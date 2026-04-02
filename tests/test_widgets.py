@@ -16,6 +16,7 @@ from work_time_logger.widgets import (
     FilterModal,
     HelpModal,
     JobCodeModal,
+    JumpToDateModal,
     OverlayInput,
 )
 
@@ -337,7 +338,7 @@ async def test_job_code_modal_editing_logic(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_daily_summary_date_jump():
-    """Test the date jump feature in DailySummaryModal."""
+    """Test the date jump feature in DailySummaryModal using JumpToDateModal."""
     app = DummyApp()
     async with app.run_test(size=(120, 60)) as pilot:
         modal = DailySummaryModal()
@@ -349,10 +350,13 @@ async def test_daily_summary_date_jump():
         today_str = date.today().isoformat()
         assert modal.target_date == today_str
 
-        # Press '/' to show input
+        # Press '/' to show input modal
         await pilot.press("/")
-        inp = modal.query_one("#date-input-overlay", Input)
-        assert inp.styles.display == "block"
+        await pilot.pause()
+        # Check if JumpToDateModal is pushed
+        assert isinstance(app.screen, JumpToDateModal)
+
+        inp = app.screen.query_one("#jump-input", Input)
         assert inp.has_focus
 
         # Input a new date and submit
@@ -360,15 +364,17 @@ async def test_daily_summary_date_jump():
         await pilot.press("enter")
         await pilot.pause()
 
-        # Check if date updated and input hidden
+        # Check if date updated and modal dismissed
         assert modal.target_date == "2025-01-01"
-        assert inp.styles.display == "none"
+        assert not isinstance(app.screen, JumpToDateModal)
 
         # Test escape to cancel
         await pilot.press("/")
-        assert inp.styles.display == "block"
+        await pilot.pause()
+        assert isinstance(app.screen, JumpToDateModal)
         await pilot.press("escape")
-        assert inp.styles.display == "none"
+        await pilot.pause()
+        assert not isinstance(app.screen, JumpToDateModal)
 
 
 @pytest.mark.asyncio

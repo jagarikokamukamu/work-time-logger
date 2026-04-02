@@ -564,13 +564,6 @@ class DailySummaryModal(ModalScreen):
     }
     #date-input-overlay {
         display: none;
-        width: 100%;
-        height: 100%;
-        background: $boost;
-        color: yellow;
-        text-style: bold;
-        border: none;
-        content-align: center middle;
     }
     """
 
@@ -596,7 +589,6 @@ class DailySummaryModal(ModalScreen):
             with Horizontal(id="summary-header"):
                 yield Static(self.target_date, id="header-date-text")
                 yield Static("", id="header-info-text")
-                yield Input(placeholder="YYYY-MM-DD", id="date-input-overlay")
 
             yield TimelineVisualizer(id="summary-visualizer")
             yield CopyableDataTable(id="summary-table")
@@ -748,15 +740,66 @@ class DailySummaryModal(ModalScreen):
         event.stop()
 
     def action_show_date_input(self) -> None:
-        """Show the date input field for direct jumping."""
-        self.query_one("#header-date-text").styles.display = "none"
-        self.query_one("#header-info-text").styles.display = "none"
-        inp = self.query_one("#date-input-overlay", Input)
-        inp.value = self.target_date
-        inp.styles.display = "block"
-        inp.focus()
+        """Show the date input modal for direct jumping."""
+        def callback(new_date: str | None) -> None:
+            if new_date:
+                self.target_date = new_date
+                self.refresh_summary()
 
-    @on(Input.Submitted, "#date-input-overlay")
+        self.app.push_screen(JumpToDateModal(self.target_date), callback)
+
+    def on_key(self, event) -> None:
+        """Handle specific keys in the modal."""
+        # The base ModalScreen already handles escape to dismiss.
+        pass
+
+
+class JumpToDateModal(ModalScreen[str | None]):
+    """Modal to enter a date to jump to in the Daily Summary."""
+
+    CSS = """
+    JumpToDateModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    #jump-dialog {
+        width: 40;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: thick $primary;
+    }
+    .jump-title {
+        content-align: center middle;
+        width: 100%;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    #jump-input {
+        margin-top: 1;
+        width: 100%;
+    }
+    """
+
+    def __init__(self, initial_date: str, **kwargs):
+        super().__init__(**kwargs)
+        self.initial_date = initial_date
+
+    def compose(self) -> ComposeResult:
+        """Compose the jump to date dialog."""
+        with Container(id="jump-dialog"):
+            yield Static("Jump to Date", classes="jump-title")
+            yield Input(
+                value=self.initial_date,
+                placeholder="YYYY-MM-DD, today, yesterday, -1, etc.",
+                id="jump-input",
+            )
+
+    def on_mount(self) -> None:
+        """Focus the input on mount."""
+        self.query_one("#jump-input").focus()
+
+    @on(Input.Submitted, "#jump-input")
     def on_date_submitted(self, event: Input.Submitted) -> None:
         """Handle date input submission."""
         event.stop()
@@ -764,28 +807,15 @@ class DailySummaryModal(ModalScreen):
         smart_date = operations.parse_smart_date(val)
 
         if smart_date:
-            self.target_date = smart_date
-            self.refresh_summary()
-            self._close_date_input()
+            self.dismiss(smart_date)
         else:
             self.app.notify(f"Invalid date: {val}", severity="error")
 
-    def _close_date_input(self) -> None:
-        """Hide the date input and return focus to the table."""
-        self.query_one("#date-input-overlay", Input).styles.display = "none"
-        self.query_one("#header-date-text").styles.display = "block"
-        self.query_one("#header-info-text").styles.display = "block"
-        self.query_one("#summary-table").focus()
-
     def on_key(self, event) -> None:
-        """Handle specific keys in the modal, especially for cancelling input."""
+        """Handle escape to cancel."""
         if event.key == "escape":
-            inp = self.query_one("#date-input-overlay", Input)
-            if inp.styles.display == "block":
-                event.stop()
-                self._close_date_input()
-                return
-        # Allow default ModalScreen behavior if not handled
+            event.stop()
+            self.dismiss(None)
 
 
 class FilterModal(ModalScreen):
