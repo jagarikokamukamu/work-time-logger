@@ -18,13 +18,13 @@ from textual.widgets import (
 )
 
 from . import db, operations
-from .widgets import (
+from .modals import (
     ConfirmDeleteModal,
     HelpModal,
     JobCodeModal,
     JobSelectionModal,
-    OverlayInput,
 )
+from .widgets import OverlayInput
 
 
 class LogColumn(IntEnum):
@@ -869,7 +869,7 @@ class WtlApp(App):
     def action_export_logs(self) -> None:
         """Action handler to export logs using a user-specified TOML profile."""
         from . import exporter
-        from .widgets import ExportLogsModal
+        from .modals import ExportLogsModal
 
         def handle_export(data: tuple[str, str, str] | None) -> None:
             if not data:
@@ -898,7 +898,7 @@ class WtlApp(App):
 
     def action_show_summary(self) -> None:
         """Action handler to show the Daily Summary modal."""
-        from .widgets import DailySummaryModal
+        from .modals import DailySummaryModal
 
         self.push_screen(DailySummaryModal())
 
@@ -910,7 +910,7 @@ class WtlApp(App):
 
     def action_show_filter(self) -> None:
         """Action handler to show the Filter modal."""
-        from .widgets import FilterModal
+        from .modals import FilterModal
 
         current = {
             "project": self.filter_project,

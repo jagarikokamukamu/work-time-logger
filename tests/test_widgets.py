@@ -7,16 +7,19 @@ from textual.app import App, ComposeResult
 from textual.widgets import Input
 
 from work_time_logger import db, operations
-from work_time_logger.tui import LogColumn, WtlApp
-from work_time_logger.widgets import (
+from work_time_logger.modals import (
     ConfirmDeleteModal,
-    CopyableDataTable,
     DailySummaryModal,
     ExportLogsModal,
     FilterModal,
     HelpModal,
     JobCodeModal,
+    JobSelectionModal,
     JumpToDateModal,
+)
+from work_time_logger.tui import LogColumn, WtlApp
+from work_time_logger.widgets import (
+    CopyableDataTable,
     OverlayInput,
 )
 

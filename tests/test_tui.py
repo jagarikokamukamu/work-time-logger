@@ -124,7 +124,7 @@ async def test_tui_confirm_delete_modal():
         await pilot.press("D")
         await pilot.pause()
 
-        from work_time_logger.widgets import ConfirmDeleteModal
+        from work_time_logger.modals import ConfirmDeleteModal
 
         assert isinstance(app.screen, ConfirmDeleteModal)
 
@@ -164,7 +164,7 @@ async def test_tui_filtering():
         await pilot.press("f")
         await pilot.pause()
 
-        from work_time_logger.widgets import FilterModal
+        from work_time_logger.modals import FilterModal
 
         assert isinstance(app.screen, FilterModal)
 
@@ -274,7 +274,7 @@ async def test_tui_misc_actions():
         # action_show_summary
         await pilot.press("v")
         await pilot.pause()
-        from work_time_logger.widgets import DailySummaryModal
+        from work_time_logger.modals import DailySummaryModal
 
         assert isinstance(app.screen, DailySummaryModal)
         await pilot.press("escape")
@@ -283,7 +283,7 @@ async def test_tui_misc_actions():
         # action_export_logs (just open and close)
         await pilot.press("e")
         await pilot.pause()
-        from work_time_logger.widgets import ExportLogsModal
+        from work_time_logger.modals import ExportLogsModal
 
         assert isinstance(app.screen, ExportLogsModal)
         await pilot.press("escape")
