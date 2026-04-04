@@ -13,25 +13,26 @@ class ExportLogsModal(BaseModal[tuple[str, str, str]]):
 
     CSS = """
     #export-dialog {
+        layout: grid;
         grid-size: 2;
         grid-gutter: 1 2;
-        grid-rows: 1fr 1fr 1fr 1fr;
-        padding: 1 2;
+        padding: 0 1;
         width: 60;
-        height: 22;
+        height: 20;
         border: thick $background 80%;
         background: $surface;
     }
     .export-label {
-        column-span: 2;
-        height: 1fr;
-        content-align: left bottom;
+        height: 3;
+        content-align: right middle;
     }
     #export-profile, #export-output, #export-date {
-        column-span: 2;
+        width: 100%;
+        height: 3;
     }
     .dialog-buttons {
         width: 100%;
+        height: 3;
     }
     """
 
@@ -46,15 +47,15 @@ class ExportLogsModal(BaseModal[tuple[str, str, str]]):
         yield Container(
             Label("Profile (.toml):", classes="export-label"),
             Input(value=str(db.DB_DIR / "profile.toml"), id="export-profile"),
-            Label("Date (YYYY-MM-DD, or 'all'):", classes="export-label"),
+            Label("Date (YYYY-MM-DD):", classes="export-label"),
             Input(value=date.today().isoformat(), id="export-date"),
             Label("Output CSV Path:", classes="export-label"),
             Input(value="report.csv", id="export-output"),
             Button(
-                "Export", variant="success", id="btn-export", classes="dialog-buttons"
+                "Cancel", variant="error", id="btn-cancel", classes="dialog-buttons"
             ),
             Button(
-                "Cancel", variant="error", id="btn-cancel", classes="dialog-buttons"
+                "Export", variant="success", id="btn-export", classes="dialog-buttons"
             ),
             id="export-dialog",
         )

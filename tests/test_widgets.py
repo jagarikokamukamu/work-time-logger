@@ -156,25 +156,34 @@ async def test_filter_modal():
 async def test_export_logs_modal():
     """Test ExportLogsModal."""
     app = DummyApp()
-    async with app.run_test() as pilot:
-        modal = ExportLogsModal()
-
+    async with app.run_test(size=(120, 60)) as pilot:
+        # Simulate cancel
+        modal_cancel = ExportLogsModal()
         result = None
 
-        def mock_dismiss(res):
+        def mock_dismiss_cancel(res):
             nonlocal result
             result = res
 
-        modal.dismiss = mock_dismiss
-        await app.push_screen(modal)
-
-        # Simulate cancel
+        modal_cancel.dismiss = mock_dismiss_cancel
+        await app.push_screen(modal_cancel)
         await pilot.click("#btn-cancel")
         await pilot.pause()
         assert result is None
 
         # Simulate Export
-        await pilot.click("#btn-export")
+        modal_export = ExportLogsModal()
+        result = None
+
+        def mock_dismiss_export(res):
+            nonlocal result
+            result = res
+
+        modal_export.dismiss = mock_dismiss_export
+        await app.push_screen(modal_export)
+        await pilot.pause()  # Ensure it's mounted
+        app.set_focus(modal_export.query_one("#btn-export"))
+        await pilot.press("enter")
         await pilot.pause()
         assert result is not None
         assert len(result) == 3
@@ -184,7 +193,7 @@ async def test_export_logs_modal():
 async def test_overlay_input():
     """Test OverlayInput standalone adjustment without full TUI."""
     app = DummyApp()
-    async with app.run_test() as _:
+    async with app.run_test(size=(120, 60)) as _:
         overlay = app.query_one(OverlayInput)
 
         # Test duration mode increment
@@ -206,7 +215,7 @@ async def test_overlay_input():
 async def test_overlay_input_extended():
     """Test OverlayInput in date and time modes."""
     app = DummyApp()
-    async with app.run_test() as _:
+    async with app.run_test(size=(120, 60)) as _:
         overlay = app.query_one(OverlayInput)
 
         # Test date mode
@@ -250,7 +259,7 @@ async def test_overlay_input_extended():
 async def test_job_code_modal_missing_job():
     """Test JobCodeModal when the specified job does not exist."""
     app = DummyApp()
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(120, 60)) as pilot:
         operations.add_project("PJ1")
         # Do not add job
 
@@ -269,7 +278,7 @@ async def test_job_code_modal_missing_job():
 async def test_daily_summary_modal_error(monkeypatch):
     """Test DailySummaryModal when exporter raises an exception."""
     app = DummyApp()
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(120, 60)) as pilot:
         # Mock exporter to fail
         import work_time_logger.exporter as t_exp
 
