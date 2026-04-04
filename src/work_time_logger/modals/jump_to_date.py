@@ -14,13 +14,28 @@ class JumpToDateModal(BaseModal[str | None]):
 
     CSS = """
     #jump-dialog {
-        width: 40;
+        width: 45;
+        height: auto;
+        border: thick $background 80%;
+        background: $surface;
+        padding: 0;
     }
     #jump-input {
-        margin-top: 1;
-        width: 100%;
+        margin: 0 2 1 2;
+        height: auto;
+        border: none;
+        border-bottom: solid $accent;
+        padding: 0 1;
+        background: $surface;
+    }
+    #jump-input:focus {
+        border-bottom: double $secondary;
     }
     """
+
+    BINDINGS = [
+        ("escape", "dismiss", "Cancel"),
+    ]
 
     def __init__(self, initial_date: str, **kwargs):
         super().__init__(**kwargs)

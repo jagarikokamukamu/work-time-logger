@@ -128,16 +128,16 @@ async def test_tui_confirm_delete_modal():
 
         assert isinstance(app.screen, ConfirmDeleteModal)
 
-        # Cancel with 'n'
-        await pilot.press("n")
+        # Cancel with 'c'
+        await pilot.press("c")
         await pilot.pause()
         assert not isinstance(app.screen, ConfirmDeleteModal)
         assert len(operations.list_logs()) == 1
 
-        # Trigger again and confirm
+        # Trigger again and confirm with 'd'
         await pilot.press("D")
         await pilot.pause()
-        await pilot.press("y")
+        await pilot.press("d")
         await pilot.pause()
 
         assert len(operations.list_logs()) == 0

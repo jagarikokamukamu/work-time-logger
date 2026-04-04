@@ -4,9 +4,10 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, DataTable, Input, Label, Static
+from textual.widgets import Button, Input, Label, Static
 
 from .. import db, exporter, operations
+from ..widgets import CopyableDataTable
 from .base import BaseModal
 
 
@@ -79,10 +80,10 @@ class JobCodeModal(BaseModal):
             yield Static(id="job-code-title", classes="modal-title")
 
             yield Label("Attributes (Edit by Enter)", classes="section-label")
-            yield DataTable(id="attributes-table", cursor_type="cell")
+            yield CopyableDataTable(id="attributes-table", cursor_type="cell")
 
             yield Label("Export Preview", classes="section-label")
-            yield DataTable(id="preview-table", cursor_type="cell")
+            yield CopyableDataTable(id="preview-table", cursor_type="cell")
 
             with Horizontal(id="edit-section"):
                 yield Label("Edit:", id="edit-label")
@@ -99,8 +100,8 @@ class JobCodeModal(BaseModal):
 
     def refresh_table(self) -> None:
         """Update both attributes and preview tables."""
-        attr_table = self.query_one("#attributes-table", DataTable)
-        prev_table = self.query_one("#preview-table", DataTable)
+        attr_table = self.query_one("#attributes-table", CopyableDataTable)
+        prev_table = self.query_one("#preview-table", CopyableDataTable)
 
         attr_table.clear(columns=True)
         attr_table.add_columns("Attribute", "Value")
@@ -121,7 +122,7 @@ class JobCodeModal(BaseModal):
         if self.focused not in (attr_table, prev_table):
             attr_table.focus()
 
-    def _refresh_export_mode(self, table: DataTable) -> None:
+    def _refresh_export_mode(self, table: CopyableDataTable) -> None:
         """Loads and renders job expansion for export."""
         profile_path = str(db.DB_DIR / "profile.toml")
         profile_cfg = exporter.load_profile(profile_path)
@@ -150,7 +151,7 @@ class JobCodeModal(BaseModal):
         else:
             table.add_row(Text("Error"), Text("Job not found"))
 
-    def _refresh_import_mode(self, table: DataTable) -> None:
+    def _refresh_import_mode(self, table: CopyableDataTable) -> None:
         """Loads and renders job attributes for import/edit."""
         profile_path = str(db.DB_DIR / "profile.toml")
         profile_cfg = exporter.load_profile(profile_path)
@@ -164,7 +165,7 @@ class JobCodeModal(BaseModal):
                 continue
             table.add_row(Text(str(col_name)), Text(str(value)), key=col_name)
 
-    def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
+    def on_copyable_data_table_cell_selected(self, event: CopyableDataTable.CellSelected) -> None:
         """Handle cell selection for editing in Attributes table."""
         if event.control.id != "attributes-table":
             return

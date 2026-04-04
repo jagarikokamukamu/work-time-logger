@@ -7,9 +7,9 @@ from textual.app import App, ComposeResult
 from textual.widgets import Input
 
 from work_time_logger import db, operations
+from work_time_logger.daily_summary import DailySummaryScreen
 from work_time_logger.modals import (
     ConfirmDeleteModal,
-    DailySummaryModal,
     ExportLogsModal,
     FilterModal,
     HelpModal,
@@ -266,7 +266,8 @@ async def test_job_code_modal_missing_job():
         modal = JobCodeModal("PJ1", "MissingJob")
         await app.push_screen(modal)
 
-        table = modal.query_one(CopyableDataTable)
+        # The error row will be in the preview table in our integrated view
+        table = modal.query_one("#preview-table", CopyableDataTable)
         # It should add an 'Error' row indicating job not found
         rows = [table.get_row_at(i) for i in range(table.row_count)]
         assert any("Error" in str(row) or "Job not found" in str(row) for row in rows)
@@ -276,7 +277,7 @@ async def test_job_code_modal_missing_job():
 
 @pytest.mark.asyncio
 async def test_daily_summary_modal_error(monkeypatch):
-    """Test DailySummaryModal when exporter raises an exception."""
+    """Test DailySummaryScreen when exporter raises an exception."""
     app = DummyApp()
     async with app.run_test(size=(120, 60)) as pilot:
         # Mock exporter to fail
@@ -287,10 +288,10 @@ async def test_daily_summary_modal_error(monkeypatch):
 
         monkeypatch.setattr(t_exp, "aggregate_logs", mock_aggregate)
 
-        modal = DailySummaryModal()
-        await app.push_screen(modal)
+        screen = DailySummaryScreen()
+        await app.push_screen(screen)
 
-        table = modal.query_one(CopyableDataTable)
+        table = screen.query_one(CopyableDataTable)
         rows = [table.get_row_at(i) for i in range(table.row_count)]
         assert any("Test Aggregation Error" in str(row) for row in rows)
 
@@ -325,11 +326,7 @@ async def test_job_code_modal_editing_logic(tmp_path: Path):
         await app.push_screen(modal)
         await pilot.pause()
 
-        # Switch to import mode
-        await pilot.press("t")
-        await pilot.pause()
-
-        # Verify initial deconstruction
+        # Integrated view shows variables immediately, no need to switch mode via "t"
         assert str(modal.import_row.get("kind")) == "K"
         assert str(modal.import_row.get("num")) == "123"
 
@@ -350,17 +347,17 @@ async def test_job_code_modal_editing_logic(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_daily_summary_date_jump():
-    """Test the date jump feature in DailySummaryModal using JumpToDateModal."""
+    """Test the date jump feature in DailySummaryScreen using JumpToDateModal."""
     app = DummyApp()
     async with app.run_test(size=(120, 60)) as pilot:
-        modal = DailySummaryModal()
-        await app.push_screen(modal)
+        screen = DailySummaryScreen()
+        await app.push_screen(screen)
         await pilot.pause()
 
         # Initial date check
         from datetime import date
         today_str = date.today().isoformat()
-        assert modal.target_date == today_str
+        assert screen.target_date == today_str
 
         # Press '/' to show input modal
         await pilot.press("/")
@@ -377,7 +374,7 @@ async def test_daily_summary_date_jump():
         await pilot.pause()
 
         # Check if date updated and modal dismissed
-        assert modal.target_date == "2025-01-01"
+        assert screen.target_date == "2025-01-01"
         assert not isinstance(app.screen, JumpToDateModal)
 
         # Test escape to cancel
@@ -417,12 +414,12 @@ async def test_daily_summary_color_coding():
 
     app = DummyApp()
     async with app.run_test(size=(120, 60)) as pilot:
-        modal = DailySummaryModal()
-        modal.target_date = target_date
-        await app.push_screen(modal)
+        screen = DailySummaryScreen()
+        screen.target_date = target_date
+        await app.push_screen(screen)
         await pilot.pause()
 
-        table = modal.query_one(CopyableDataTable)
+        table = screen.query_one(CopyableDataTable)
         # Check first column is the colored dot
         # Note: table.columns is a dict-like object
         cols = list(table.columns.values())
@@ -439,7 +436,7 @@ async def test_daily_summary_color_coding():
 
         # Verify visualizer intervals have colors matching the rows
         from work_time_logger.widgets import TimelineVisualizer
-        viz = modal.query_one(TimelineVisualizer)
+        viz = screen.query_one(TimelineVisualizer)
         assert len(viz.intervals) == 2
         # interval: (start, end, color)
         # By default, they should have different colors because group_by=['job_name']

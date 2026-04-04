@@ -1,8 +1,8 @@
 """Confirm Delete Modal."""
 
 from textual.app import ComposeResult
-from textual.containers import Container
-from textual.widgets import Button, Label
+from textual.containers import Container, Horizontal
+from textual.widgets import Button, Label, Static
 
 from .base import BaseModal
 
@@ -12,39 +12,51 @@ class ConfirmDeleteModal(BaseModal[bool]):
 
     CSS = """
     #confirm-dialog {
-        grid-size: 2;
-        grid-gutter: 1 2;
-        grid-rows: 1fr 3;
-        padding: 0 1;
+        padding: 0;
         width: 50;
-        height: 11;
+        height: auto;
         border: thick $background 80%;
         background: $surface;
     }
     #question {
-        column-span: 2;
-        height: 1fr;
-        width: 1fr;
+        width: 100%;
         content-align: center middle;
+        padding: 1 2;
+    }
+    .modal-title {
+        width: 100%;
+        content-align: center middle;
+        height: 1;
+        background: $error;
+        color: $text;
+        text-style: bold;
+        margin-bottom: 0;
+    }
+    #button-row {
+        width: 100%;
+        height: auto;
+        padding: 0 1 1 1;
     }
     Button {
-        width: 100%;
+        width: 1fr;
+        margin: 0 1;
     }
     """
 
     BINDINGS = [
-        ("y", "yes", "Yes"),
-        ("n", "no", "No"),
+        ("d", "yes", "Delete"),
+        ("c", "no", "Cancel"),
+        ("escape", "no", "Cancel"),
     ]
 
     def compose(self) -> ComposeResult:
         """Compose the confirmation dialog widgets."""
-        yield Container(
-            Label("Are you sure you want to delete this log?", id="question"),
-            Button("Yes (y)", variant="error", id="yes"),
-            Button("No (n)", variant="primary", id="no"),
-            id="confirm-dialog",
-        )
+        with Container(id="confirm-dialog", classes="modal-container"):
+            yield Static("Confirm Delete", classes="modal-title")
+            yield Label("Are you sure you want to delete this log?", id="question")
+            with Horizontal(id="button-row"):
+                yield Button("Delete (d)", variant="error", id="yes")
+                yield Button("Cancel (c)", variant="primary", id="no")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events (Yes/No)."""
