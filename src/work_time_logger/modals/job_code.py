@@ -4,7 +4,7 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, DataTable, Input, Label, Static
 
 from .. import db, exporter, operations
 from ..widgets import CopyableDataTable
@@ -165,10 +165,11 @@ class JobCodeModal(BaseModal):
                 continue
             table.add_row(Text(str(col_name)), Text(str(value)), key=col_name)
 
-    def on_copyable_data_table_cell_selected(self, event: CopyableDataTable.CellSelected) -> None:
+    @on(DataTable.CellSelected, "#attributes-table")
+    def on_attribute_selected(
+        self, event: DataTable.CellSelected
+    ) -> None:
         """Handle cell selection for editing in Attributes table."""
-        if event.control.id != "attributes-table":
-            return
         event.stop()
 
         # Ensure we are in the "Value" column (index 1)
