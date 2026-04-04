@@ -7,7 +7,6 @@ from textual.containers import Container, Horizontal
 from textual.widgets import Button, DataTable, Input, Label, Static
 
 from .. import db, exporter, operations
-from ..widgets import CopyableDataTable
 from .base import BaseModal
 
 
@@ -16,20 +15,27 @@ class JobCodeModal(BaseModal):
 
     CSS = """
     #job-code-container {
-        width: 80;
+        width: 100;
+        height: 80%;
+        border: thick $background 80%;
+        background: $surface;
+    }
+    .section-label {
+        width: 100%;
+        text-style: bold;
+        background: $accent;
+        color: $text;
+        padding: 0 1;
+        margin-top: 1;
+    }
+    #attributes-table {
+        height: 1fr;
         border: none;
     }
-    .copy-hint {
-        content-align: right middle;
-        width: 100%;
-        text-style: italic;
-        opacity: 0.8;
-        margin-top: 1;
-        margin-bottom: 1;
-    }
-    #job-code-table {
-        height: auto;
-        max-height: 20;
+    #preview-table {
+        height: 1fr;
+        border: none;
+        background: $boost;
     }
     #btn-close {
         margin-top: 1;
@@ -44,7 +50,7 @@ class JobCodeModal(BaseModal):
         padding: 0 1;
     }
     #edit-label {
-        width: 20;
+        width: 25;
         content-align: left middle;
         text-style: bold;
     }
@@ -56,14 +62,13 @@ class JobCodeModal(BaseModal):
     """
 
     BINDINGS = [
-        ("t", "toggle_mode", "Toggle Export/Import"),
+        ("escape", "dismiss", "Close"),
     ]
 
     def __init__(self, project_name: str, job_name: str, **kwargs):
         super().__init__(**kwargs)
         self.project_name = project_name
         self.job_name = job_name
-        self.mode = "export"  # "export" or "import"
         self.import_row = {}
         self.name_vars = []
         self._editing_col_name = None
@@ -72,10 +77,13 @@ class JobCodeModal(BaseModal):
         """Compose the job code expansion screen widgets."""
         with Container(id="job-code-container", classes="modal-container"):
             yield Static(id="job-code-title", classes="modal-title")
-            yield CopyableDataTable(id="job-code-table", cursor_type="cell")
-            yield Label(
-                "[b orange]c[/] copy  [b orange]t[/] toggle", classes="copy-hint"
-            )
+
+            yield Label("Attributes (Edit by Enter)", classes="section-label")
+            yield DataTable(id="attributes-table", cursor_type="cell")
+
+            yield Label("Export Preview", classes="section-label")
+            yield DataTable(id="preview-table", cursor_type="cell")
+
             with Horizontal(id="edit-section"):
                 yield Label("Edit:", id="edit-label")
                 yield Input(id="job-code-edit-input")
@@ -86,32 +94,32 @@ class JobCodeModal(BaseModal):
         self.refresh_table()
 
     def action_toggle_mode(self) -> None:
-        """Toggle between Export and Import display modes."""
-        # Reset UI state when switching modes
-        self.query_one("#edit-section").styles.display = "none"
-        self.mode = "import" if self.mode == "export" else "export"
-        self.refresh_table()
+        """N/A - Toggle mode is removed in favor of integrated view."""
+        pass
 
     def refresh_table(self) -> None:
-        """Update the table content based on the current mode."""
-        table = self.query_one(CopyableDataTable)
-        table.clear(columns=True)
-        table.add_columns("Column", "Value")
+        """Update both attributes and preview tables."""
+        attr_table = self.query_one("#attributes-table", DataTable)
+        prev_table = self.query_one("#preview-table", DataTable)
+
+        attr_table.clear(columns=True)
+        attr_table.add_columns("Attribute", "Value")
+
+        prev_table.clear(columns=True)
+        prev_table.add_columns("Export Column", "Preview Value")
 
         title = self.query_one("#job-code-title", Static)
-        mode_label = "(Export Mode)" if self.mode == "export" else "(Import Mode)"
-        title.update(
-            f"Job Code Expansion: {self.job_name} [#79a8a8]{mode_label}[/#79a8a8]"
-        )
+        title.update(f"Job Details: {self.job_name}")
 
         try:
-            if self.mode == "export":
-                self._refresh_export_mode(table)
-            else:
-                self._refresh_import_mode(table)
+            self._refresh_import_mode(attr_table)
+            self._refresh_export_mode(prev_table)
         except Exception as e:
-            table.add_row("Error", str(e))
-        table.focus()
+            attr_table.add_row("Error", str(e))
+
+        # Focus attributes table if nothing is focused or returning from edit
+        if self.focused not in (attr_table, prev_table):
+            attr_table.focus()
 
     def _refresh_export_mode(self, table: DataTable) -> None:
         """Loads and renders job expansion for export."""
@@ -157,12 +165,10 @@ class JobCodeModal(BaseModal):
             table.add_row(Text(str(col_name)), Text(str(value)), key=col_name)
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
-        """Handle cell selection for editing in Import mode."""
-        if event.control.id != "job-code-table":
+        """Handle cell selection for editing in Attributes table."""
+        if event.control.id != "attributes-table":
             return
-        event.stop()  # Prevent the event from bubbling up to the main App!
-        if self.mode != "import":
-            return
+        event.stop()
 
         # Ensure we are in the "Value" column (index 1)
         if event.coordinate.column != 1:
@@ -174,7 +180,10 @@ class JobCodeModal(BaseModal):
 
         # Protection: Cannot edit variables that are part of the Job Name
         if row_key in self.name_vars:
-            self.app.notify("Job名は編集できません", severity="warning")
+            self.app.notify(
+                "Job名は直接編集できません (プロジェクト設定に依存します)",
+                severity="warning"
+            )
             return
 
         current_value = str(self.import_row.get(row_key, ""))
@@ -216,7 +225,7 @@ class JobCodeModal(BaseModal):
 
         self.query_one("#edit-section").styles.display = "none"
         self.refresh_table()
-        self.query_one("#job-code-table").focus()
+        self.query_one("#attributes-table").focus()
 
     def on_key(self, event) -> None:
         """Handle escape to cancel editing."""
@@ -225,7 +234,7 @@ class JobCodeModal(BaseModal):
             if inp.has_focus:
                 event.stop()
                 self.query_one("#edit-section").styles.display = "none"
-                self.query_one("#job-code-table").focus()
+                self.query_one("#attributes-table").focus()
                 return
         # Default behavior: ModalScreen handles escape to dismiss if not caught above.
 
