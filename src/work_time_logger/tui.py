@@ -464,7 +464,7 @@ class WtlApp(App):
 
         if col_index in (LogColumn.PROJECT, LogColumn.JOB):
             callback = partial(self._update_job_for_log, log_entry)
-            self.push_screen(JobSelectionModal(), callback)
+            self.push_screen(JobSelectionModal(title="Change Job"), callback)
         elif col_index == LogColumn.DATE:
             # Date field
             value = log_entry["start_time"][:10] if log_entry["start_time"] else ""
@@ -795,7 +795,9 @@ class WtlApp(App):
                 )
                 return
 
-            self.push_screen(JobSelectionModal(), self.start_timer_for_selection)
+            self.push_screen(
+                JobSelectionModal(title="Start New Job"), self.start_timer_for_selection
+            )
 
         check_running_and_show_modal()
 

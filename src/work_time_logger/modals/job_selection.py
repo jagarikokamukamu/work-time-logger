@@ -2,7 +2,7 @@
 
 from textual.app import ComposeResult
 from textual.containers import Container
-from textual.widgets import Input, OptionList
+from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
 from .. import operations
@@ -14,24 +14,48 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
 
     CSS = """
     #dialog {
-        grid-size: 1 2;
-        grid-rows: 3 1fr;
         width: 60;
-        height: 20;
+        height: 25;
+        border: thick $background 80%;
+        background: $surface;
+        padding: 0;
+    }
+    #title {
+        width: 100%;
+        content-align: center middle;
+        height: 1;
+        background: $primary;
+        color: $text;
+        text-style: bold;
+        margin-bottom: 1;
     }
     #search {
-        margin: 1 2;
+        margin: 0 2;
+        height: auto;
+        border: none;
+        border-bottom: solid $accent;
+        padding: 0 1;
+        background: $surface;
+    }
+    #search:focus {
+        border-bottom: double $secondary;
     }
     #job-list {
-        margin: 0 2 1 2;
+        margin: 1 2;
+        height: 15;
+        border: none;
+        background: $surface;
     }
     """
 
-    BINDINGS = []
+    BINDINGS = [
+        ("escape", "dismiss_modal", "Cancel"),
+    ]
 
-    def __init__(self):
+    def __init__(self, title: str = "Select Job"):
         super().__init__()
         self.jobs = []
+        self.modal_title = title
         for p in operations.list_projects():
             for j in operations.list_jobs(p["name"]):
                 self.jobs.append((p["name"], j["name"]))
@@ -39,6 +63,7 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
     def compose(self) -> ComposeResult:
         """Compose the child widgets for the modal."""
         yield Container(
+            Label(self.modal_title, id="title"),
             Input(placeholder="Type to search for a job...", id="search"),
             OptionList(id="job-list"),
             id="dialog",
