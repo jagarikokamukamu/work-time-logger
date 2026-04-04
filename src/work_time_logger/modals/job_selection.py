@@ -15,7 +15,7 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
     CSS = """
     #dialog {
         width: 60;
-        height: 25;
+        height: 80%;
         border: thick $background 80%;
         background: $surface;
         padding: 0;
@@ -42,7 +42,7 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
     }
     #job-list {
         margin: 1 2;
-        height: 15;
+        height: 1fr;
         border: none;
         background: $surface;
     }
