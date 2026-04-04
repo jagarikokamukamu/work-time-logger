@@ -15,24 +15,32 @@ class ExportLogsModal(BaseModal[tuple[str, str, str]]):
     #export-dialog {
         layout: grid;
         grid-size: 2;
-        grid-gutter: 1 2;
+        grid-gutter: 0 2;
         padding: 0 1;
         width: 60;
-        height: 20;
+        height: auto;
         border: thick $background 80%;
         background: $surface;
     }
     .export-label {
-        height: 3;
+        height: auto;
         content-align: right middle;
     }
     #export-profile, #export-output, #export-date {
         width: 100%;
-        height: 3;
+        height: auto;
+        border: none;
+        background: $surface;
+        border-bottom: solid $accent;
+        padding: 0 1;
+    }
+    #export-profile:focus, #export-output:focus, #export-date:focus {
+       border-bottom: double $secondary;
     }
     .dialog-buttons {
         width: 100%;
-        height: 3;
+        height: auto;
+        border: none;
     }
     """
 
