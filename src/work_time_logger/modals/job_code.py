@@ -17,6 +17,7 @@ class JobCodeModal(BaseModal):
     CSS = """
     #job-code-container {
         width: 80;
+        border: none;
     }
     .copy-hint {
         content-align: right middle;
@@ -33,6 +34,7 @@ class JobCodeModal(BaseModal):
     #btn-close {
         margin-top: 1;
         width: 100%;
+        border: none;
     }
     #edit-section {
         margin-top: 1;
@@ -48,6 +50,8 @@ class JobCodeModal(BaseModal):
     }
     #job-code-edit-input {
         width: 1fr;
+        height: auto;
+        border: none;
     }
     """
 
