@@ -274,9 +274,9 @@ async def test_tui_misc_actions():
         # action_show_summary
         await pilot.press("v")
         await pilot.pause()
-        from work_time_logger.modals import DailySummaryModal
+        from work_time_logger.daily_summary import DailySummaryScreen
 
-        assert isinstance(app.screen, DailySummaryModal)
+        assert isinstance(app.screen, DailySummaryScreen)
         await pilot.press("escape")
         await pilot.pause()
 

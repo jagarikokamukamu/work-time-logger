@@ -897,15 +897,19 @@ class WtlApp(App):
         self.push_screen(ExportLogsModal(), handle_export)
 
     def action_show_summary(self) -> None:
-        """Action handler to show the Daily Summary modal."""
-        from .modals import DailySummaryModal
+        """Action handler to show the Daily Summary screen."""
+        from .daily_summary import DailySummaryScreen
 
-        self.push_screen(DailySummaryModal())
+        if isinstance(self.screen, DailySummaryScreen):
+            return
+        self.push_screen(DailySummaryScreen())
 
     def action_show_dashboard(self) -> None:
         """Action handler to show the Dashboard screen."""
         from .dashboard import DashboardScreen
 
+        if isinstance(self.screen, DashboardScreen):
+            return
         self.push_screen(DashboardScreen())
 
     def action_show_filter(self) -> None:
