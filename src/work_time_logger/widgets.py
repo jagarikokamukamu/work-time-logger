@@ -225,19 +225,20 @@ class TimelineVisualizer(Static):
                 col = colors[0] if colors[0] else "#79a8a8"
                 text.append(" ", style=f"on {col}")
             else:
-                # Overlap! We use a medium shade character to show blending
-                # Try to get two distinct colors if possible
                 unique_colors = list(
                     dict.fromkeys(colors)
                 )  # preserve order, make unique
                 col1 = unique_colors[0] if unique_colors[0] else "#79a8a8"
-                if len(unique_colors) > 1:
+                if len(unique_colors) == 2:
                     col2 = unique_colors[1] if unique_colors[1] else "#79a8a8"
-                    # Foregroung color2, Background color1
-                    text.append("▒", style=f"{col2} on {col1}")
+                    # Upper half (fg) is col1, lower half (bg) is col2
+                    text.append("▀", style=f"{col1} on {col2}")
+                elif len(unique_colors) > 2:
+                    col2 = unique_colors[1] if unique_colors[1] else "#79a8a8"
+                    # 3 or more: Use a triple-bar indicating multiple layers
+                    text.append("☰", style=f"{col1} on {col2}")
                 else:
-                    # Same color overlapping itself
-                    text.append("▒", style=f"#ffffff on {col1}")
+                    text.append("▀", style=f"{col1} on {col1}")
 
         ruler_str = (
             "0" + " " * 10 + "6" + " " * 11 + "12" + " " * 11 + "18" + " " * 9 + "24"
