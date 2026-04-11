@@ -188,10 +188,12 @@ class TimelineVisualizer(Static):
         self.refresh()
 
     def render(self) -> Text:
-        """Render the 24-hour timeline bar."""
-        # 0 to 24 hours, 2 characters per hour = 48 chars wide
+        """Render the 24-hour timeline bar.
+
+        Overlapping intervals (prorated time) are visually indicated.
+        """
         bar_width = 48
-        text = Text(" " * bar_width, style="on #2e2e2e")
+        cell_colors = [[] for _ in range(bar_width)]
 
         for start_iso, end_iso, color in self.intervals:
             if not start_iso or not end_iso:
@@ -200,21 +202,42 @@ class TimelineVisualizer(Static):
                 s = datetime.fromisoformat(start_iso)
                 e = datetime.fromisoformat(end_iso)
 
-                # Map time to 0.0-24.0 range
                 start_f = s.hour + s.minute / 60.0 + s.second / 3600.0
                 end_f = e.hour + e.minute / 60.0 + e.second / 3600.0
 
                 start_idx = int(start_f * (bar_width / 24.0))
                 end_idx = int(end_f * (bar_width / 24.0))
 
-                # Highlight the range
-                style = f"on {color}" if color else "on #79a8a8"
-                if end_idx > start_idx:
-                    text.stylize(style, start_idx, end_idx)
-                elif end_idx == start_idx and start_idx < bar_width:
-                    text.stylize(style, start_idx, start_idx + 1)
+                # Make sure we color at least one block if it's a very short log
+                if end_idx == start_idx and start_idx < bar_width:
+                    cell_colors[start_idx].append(color)
+                else:
+                    for i in range(start_idx, min(end_idx, bar_width)):
+                        cell_colors[i].append(color)
             except (ValueError, TypeError):
                 continue
+
+        text = Text()
+        for colors in cell_colors:
+            if not colors:
+                text.append(" ", style="on #2e2e2e")
+            elif len(colors) == 1:
+                col = colors[0] if colors[0] else "#79a8a8"
+                text.append(" ", style=f"on {col}")
+            else:
+                # Overlap! We use a medium shade character to show blending
+                # Try to get two distinct colors if possible
+                unique_colors = list(
+                    dict.fromkeys(colors)
+                )  # preserve order, make unique
+                col1 = unique_colors[0] if unique_colors[0] else "#79a8a8"
+                if len(unique_colors) > 1:
+                    col2 = unique_colors[1] if unique_colors[1] else "#79a8a8"
+                    # Foregroung color2, Background color1
+                    text.append("▒", style=f"{col2} on {col1}")
+                else:
+                    # Same color overlapping itself
+                    text.append("▒", style=f"#ffffff on {col1}")
 
         ruler_str = (
             "0" + " " * 10 + "6" + " " * 11 + "12" + " " * 11 + "18" + " " * 9 + "24"
