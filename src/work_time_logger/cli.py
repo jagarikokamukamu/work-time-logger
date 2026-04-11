@@ -92,6 +92,9 @@ def start(
     unassigned: bool = typer.Option(
         False, "--unassigned", "-u", help="Start an unassigned timer."
     ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Force start even if another job is running."
+    ),
 ):
     """Start tracking a job.
 
@@ -108,7 +111,7 @@ def start(
     try:
         p_name = None if unassigned else project_name
         j_name = None if unassigned else job_name
-        operations.start_log(p_name, j_name)
+        operations.start_log(p_name, j_name, force_parallel=force)
 
         if unassigned:
             console.print(
@@ -119,7 +122,13 @@ def start(
                 f"[green]Started tracking '{job_name}' in '{project_name}'.[/green]"
             )
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
+        error_msg = str(e)
+        if "already running" in error_msg:
+            console.print(
+                f"[red]Error: {error_msg}[/red] [yellow]Use --force or -f to start a parallel tracker.[/yellow]"
+            )
+        else:
+            console.print(f"[red]Error: {error_msg}[/red]")
 
 
 @app.command("stop")
@@ -129,8 +138,8 @@ def stop():
     Ends the currently running log entry by setting its end time to now.
     """
     try:
-        operations.stop_log()
-        console.print("[green]Stopped current job tracking![/green]")
+        count = operations.stop_all_logs()
+        console.print(f"[green]Stopped {count} running job(s)![/green]")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 

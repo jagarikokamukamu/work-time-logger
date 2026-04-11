@@ -19,6 +19,7 @@ from textual.widgets import (
 
 from . import db, operations
 from .modals import (
+    ConfirmActionModal,
     ConfirmDeleteModal,
     HelpModal,
     JobCodeModal,
@@ -726,15 +727,37 @@ class WtlApp(App):
         if not log_entry:
             return
 
-        if operations.is_any_job_running():
-            self.notify(
-                "A job is already running! Please stop it first.",
-                severity="error",
-            )
-            return
-
         project_name = log_entry["project_name"]
         job_name = log_entry["job_name"]
+
+        self._start_log_with_config(project_name, job_name)
+
+    def _start_log_with_config(
+        self, project_name: str | None, job_name: str | None
+    ) -> None:
+        """Helper to start a log, handling parallel tracking confirmation if needed."""
+        if operations.is_any_job_running():
+
+            def cb(res: bool) -> None:
+                if res:
+                    try:
+                        operations.start_log(
+                            project_name, job_name, force_parallel=True
+                        )
+                        self.refresh_data()
+                    except Exception as e:
+                        self.notify(f"Error: {e}", severity="error")
+
+            self.push_screen(
+                ConfirmActionModal(
+                    "Parallel Tracking",
+                    "A job is already running. Start in parallel?",
+                    yes_label="Start Parallel (s)",
+                    no_label="Cancel (c)",
+                ),
+                cb,
+            )
+            return
 
         try:
             operations.start_log(project_name, job_name)
@@ -775,31 +798,12 @@ class WtlApp(App):
             job_name = str(self.projects_tree.cursor_node.label)
             project_name = str(self.projects_tree.cursor_node.parent.label)
 
-            # Use the dedicated check instead of relying on start_log side effects.
-            if operations.is_any_job_running():
-                self.notify(
-                    "A job is already running! Please stop it first.",
-                    severity="error",
-                )
-                return
-
             self.start_timer_for_selection((project_name, job_name))
             return
 
-        def check_running_and_show_modal():
-            """Helper to check for running jobs before showing selection modal."""
-            if operations.is_any_job_running():
-                self.notify(
-                    "A job is already running! Please stop it first.",
-                    severity="error",
-                )
-                return
-
-            self.push_screen(
-                JobSelectionModal(title="Start New Job"), self.start_timer_for_selection
-            )
-
-        check_running_and_show_modal()
+        self.push_screen(
+            JobSelectionModal(title="Start New Job"), self.start_timer_for_selection
+        )
 
     def start_timer_for_selection(self, selection: tuple[str, str] | None) -> None:
         """Starts a timer for the selected project and job.
@@ -812,27 +816,43 @@ class WtlApp(App):
             return
 
         project_name, job_name = selection
-        try:
-            operations.start_log(project_name, job_name)
-            self.refresh_data()
-        except Exception as e:
-            self.notify(f"Error: {e}", severity="error")
+
+        self._start_log_with_config(project_name, job_name)
 
     def action_stop_job(self) -> None:
-        """Action handler to stop the currently running job."""
+        """Action handler to stop a running job.
+
+        If focused on a running log in the table, stops that specific log.
+        Otherwise, stops the most recent running log.
+        """
+        log_id_to_stop = None
+        if self.focused == self.logs_table:
+            coord = self.logs_table.cursor_coordinate
+            if coord:
+                try:
+                    cell_key = self.logs_table.coordinate_to_cell_key(coord)
+                    if cell_key and cell_key.row_key:
+                        log_id = int(str(cell_key.row_key.value))
+                        log_entry = next(
+                            (e for e in self.logs if e["id"] == log_id), None
+                        )
+                        if log_entry and log_entry["end_time"] is None:
+                            log_id_to_stop = log_id
+                except (ValueError, KeyError, IndexError, TypeError):
+                    pass
+
         try:
-            operations.stop_log()
+            if log_id_to_stop is not None:
+                operations.stop_log(log_id=log_id_to_stop)
+            else:
+                operations.stop_all_logs()
             self.refresh_data()
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
     def action_start_unassigned(self) -> None:
         """Action handler to start an unassigned log entry."""
-        try:
-            operations.start_log(None, None)
-            self.refresh_data()
-        except Exception as e:
-            self.notify(f"Error: {e}", severity="error")
+        self._start_log_with_config(None, None)
 
     def action_add_empty_log(self) -> None:
         """Action handler to add a new empty log."""

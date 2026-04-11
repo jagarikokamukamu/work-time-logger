@@ -42,7 +42,7 @@ def test_start_unassigned_from_cli():
     # Stop it
     result = runner.invoke(cli.app, ["stop"])
     assert result.exit_code == 0
-    assert "Stopped current job tracking" in result.stdout
+    assert "Stopped 1 running job(s)!" in result.stdout
 
 
 def test_start_with_options():
@@ -57,6 +57,47 @@ def test_start_with_options():
 
     # Stop it
     runner.invoke(cli.app, ["stop"])
+
+
+def test_start_parallel_with_force_cli():
+    # Setup
+    runner.invoke(cli.app, ["project", "add", "-p", "P1"])
+    runner.invoke(cli.app, ["job", "add", "-j", "J1", "-p", "P1"])
+    runner.invoke(cli.app, ["job", "add", "-j", "J2", "-p", "P1"])
+
+    # Start first job
+    runner.invoke(cli.app, ["start", "-p", "P1", "-j", "J1"])
+
+    # Start second job without force should fail
+    result = runner.invoke(cli.app, ["start", "-p", "P1", "-j", "J2"])
+    assert "Error: A job is already running" in result.stdout
+    assert "Use --force or -f" in result.stdout
+
+    # Start second job with force should succeed
+    result = runner.invoke(cli.app, ["start", "-p", "P1", "-j", "J2", "--force"])
+    assert result.exit_code == 0
+    assert "Started tracking 'J2' in 'P1'" in result.stdout
+
+    # Verify two are running
+    logs = operations.list_logs()
+    running = [l for l in logs if l["end_time"] is None]
+    assert len(running) == 2
+
+
+def test_stop_multiple_logs_cli():
+    # Setup two running jobs
+    runner.invoke(cli.app, ["start", "--unassigned"])
+    runner.invoke(cli.app, ["start", "--unassigned", "-f"])
+
+    # Stop all
+    result = runner.invoke(cli.app, ["stop"])
+    assert result.exit_code == 0
+    assert "Stopped 2 running job(s)!" in result.stdout
+
+    # Verify none are running
+    logs = operations.list_logs()
+    running = [l for l in logs if l["end_time"] is None]
+    assert len(running) == 0
 
 
 def test_start_fail_without_unassigned_flag():

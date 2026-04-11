@@ -36,7 +36,7 @@ async def test_tui_startup_population():
     operations.add_project("Test Project")
     operations.add_job("Test Job", "Test Project")
     operations.start_log("Test Project", "Test Job")
-    operations.stop_log()
+    operations.stop_all_logs()
 
     app = WtlApp()
     async with app.run_test(size=(120, 60)):
@@ -149,12 +149,12 @@ async def test_tui_filtering():
     operations.add_project("P1")
     operations.add_job("J1", "P1")
     operations.start_log("P1", "J1")
-    operations.stop_log()
+    operations.stop_all_logs()
 
     operations.add_project("P2")
     operations.add_job("J2", "P2")
     operations.start_log("P2", "J2")
-    operations.stop_log()
+    operations.stop_all_logs()
 
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:
@@ -254,7 +254,7 @@ async def test_tui_misc_actions():
     operations.add_project("MockProj")
     operations.add_job("MockJob", "MockProj")
     operations.start_log("MockProj", "MockJob")
-    operations.stop_log()
+    operations.stop_all_logs()
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:
         # action_switch_focus
@@ -437,7 +437,7 @@ async def test_tui_restart_job():
     operations.add_project("RestartProj")
     operations.add_job("RestartJob", "RestartProj")
     operations.start_log("RestartProj", "RestartJob")
-    operations.stop_log()  # Complete it
+    operations.stop_all_logs()  # Complete it
 
     app = WtlApp()
     async with app.run_test(size=(120, 60)) as pilot:

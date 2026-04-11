@@ -39,35 +39,51 @@ def test_export_logic(tmp_path: Path):
     # Log 1: Job1 (1.1 hours)
     log_id1 = operations.create_empty_log()
     operations.update_log(
-        log_id1, "Project1", "Job1", "2024-01-01T10:00:00",
-        "2024-01-01T11:06:00", "First meeting"
+        log_id1,
+        "Project1",
+        "Job1",
+        "2024-01-01T10:00:00",
+        "2024-01-01T11:06:00",
+        "First meeting",
     )
 
     # Log 2: Job2 (2.1 hours)
     log_id2 = operations.create_empty_log()
     operations.update_log(
-        log_id2, "Project1", "Job2", "2024-01-01T13:00:00",
-        "2024-01-01T15:06:00", "Status update"
+        log_id2,
+        "Project1",
+        "Job2",
+        "2024-01-01T13:00:00",
+        "2024-01-01T15:06:00",
+        "Status update",
     )
 
     # Log 3: Job3 (1.2 hours)
     log_id3 = operations.create_empty_log()
     operations.update_log(
-        log_id3, "Project1", "Job3", "2024-01-02T10:00:00",
-        "2024-01-02T11:12:00", "Writing docs"
+        log_id3,
+        "Project1",
+        "Job3",
+        "2024-01-02T10:00:00",
+        "2024-01-02T11:12:00",
+        "Writing docs",
     )
 
     # Log 4: Job4 (1.4 hours)
     log_id4 = operations.create_empty_log()
     operations.update_log(
-        log_id4, "Project2", "Job4", "2024-01-03T10:00:00",
-        "2024-01-03T11:24:00", "Kickoff"
+        log_id4,
+        "Project2",
+        "Job4",
+        "2024-01-03T10:00:00",
+        "2024-01-03T11:24:00",
+        "Kickoff",
     )
 
     # Create export profile
     profile_path = tmp_path / "profile.toml"
     with open(profile_path, "w", encoding="utf-8") as f:
-        f.write('''
+        f.write("""
 [export.extract]
 job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_\
 (?P<prefix>[a-zA-Z]+)_(?P<desc>.*)"
@@ -103,7 +119,7 @@ note_separator = "/"
 "branch" = "{{ branch }}"
 "time_col" = "{{ aggregated_time }}"
 "note_col" = "{{ aggregated_notes }}"
-        ''')
+        """)
 
     output_path = tmp_path / "output.csv"
 
@@ -121,6 +137,56 @@ note_separator = "/"
     )
 
 
+def test_auto_allocation_sweep_line(tmp_path: Path):
+    from work_time_logger import exporter, operations
+
+    operations.add_project("SweepProject")
+    operations.add_job("JobA", "SweepProject", code="AUTO-100")
+    operations.add_job("JobB", "SweepProject", code="AUTO-200")
+
+    # overlaps
+    # JobA: 10:00 - 12:00 (2h)
+    # JobB: 11:00 - 13:00 (2h)
+    # Expected Allocation:
+    # 10:00 - 11:00 (1h) -> JobA = 1h
+    # 11:00 - 12:00 (1h) -> JobA 0.5h, JobB 0.5h
+    # 12:00 - 13:00 (1h) -> JobB = 1h
+    # Total JobA = 1.5h, JobB = 1.5h
+
+    log_a = operations.create_empty_log()
+    operations.update_log(
+        log_a, "SweepProject", "JobA", "2024-05-01T10:00:00", "2024-05-01T12:00:00"
+    )
+
+    log_b = operations.create_empty_log()
+    operations.update_log(
+        log_b, "SweepProject", "JobB", "2024-05-01T11:00:00", "2024-05-01T13:00:00"
+    )
+
+    profile_path = tmp_path / "profile.toml"
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write("""
+[export.extract]
+job_code = "^(?P<kind>[A-Z]+)-(?P<num>\\\\d+)$"
+
+[export]
+group_by = ["kind", "num"]
+
+[export.columns]
+"Job" = "{{ num }}"
+"Allocated" = "{{ aggregated_time }}"
+""")
+
+    output_path = tmp_path / "output_sweep.csv"
+    exporter.export_logs(str(profile_path), str(output_path), target_date="2024-05-01")
+
+    with open(output_path, encoding="utf-8") as f:
+        content = f.read()
+
+    assert "100,1.5" in content
+    assert "200,1.5" in content
+
+
 def test_time_precision_and_rounding(tmp_path: Path):
     """time_precision and time_rounding should affect aggregated_time correctly."""
     operations.add_project("PrecProject")
@@ -130,8 +196,11 @@ def test_time_precision_and_rounding(tmp_path: Path):
     operations.add_job("JobA", "PrecProject", code="T-001")
     log_id = operations.create_empty_log()
     operations.update_log(
-        log_id, "PrecProject", "JobA",
-        "2024-02-01T10:00:00", "2024-02-01T10:00:00",
+        log_id,
+        "PrecProject",
+        "JobA",
+        "2024-02-01T10:00:00",
+        "2024-02-01T10:00:00",
         "task",
         duration_hours=2.16,
     )
@@ -172,8 +241,8 @@ note_separator = "/"
     # precision=1, round -> 2.16 rounds to 2.2
     # Verifies BOTH aggregated_time AND time_hours in note_item are rounded
     c = run_export(1, "round")
-    assert get_time_col(c) == 2.2       # aggregated_time
-    assert get_note_col(c) == 2.2       # time_hours in note_item
+    assert get_time_col(c) == 2.2  # aggregated_time
+    assert get_note_col(c) == 2.2  # time_hours in note_item
 
     # precision=0, floor -> 2.16 floors to 2
     assert get_time_col(run_export(0, "floor")) == 2.0
@@ -195,9 +264,12 @@ def test_time_aggregation_method(tmp_path: Path):
     for _ in range(2):
         lid = operations.create_empty_log()
         operations.update_log(
-            lid, "AggProject", "Job1",
-            "2024-03-01T10:00:00", "2024-03-01T10:00:00",
-            duration_hours=1.16
+            lid,
+            "AggProject",
+            "Job1",
+            "2024-03-01T10:00:00",
+            "2024-03-01T10:00:00",
+            duration_hours=1.16,
         )
 
     profile_path = tmp_path / "profile.toml"
@@ -234,7 +306,7 @@ def test_export_jobs(tmp_path: Path):
 
     profile_path = tmp_path / "profile.toml"
     with open(profile_path, "w", encoding="utf-8") as f:
-        f.write('''
+        f.write("""
 [export.extract]
 job_code = "^(?P<pfx>[A-Z]+)_(?P<n>\\\\d+)_(?P<s>[A-Z]+)$"
 
@@ -247,7 +319,7 @@ job_code = "{{ 接頭語 }}_{{ 番号 }}_{{ 枝番 }}"
 "接頭語" = "{{ pfx }}"
 "番号" = "{{ n }}"
 "枝番" = "{{ s }}"
-''')
+""")
 
     output_path = tmp_path / "jobs_export.csv"
 

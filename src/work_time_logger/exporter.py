@@ -216,10 +216,60 @@ def aggregate_logs(
             if log["start_time"] and log["start_time"][:10] == target_date
         ]
 
+    # --- Sweep-line calculation for auto-allocation ---
+    from collections import defaultdict
+
+    logs_by_date = defaultdict(list)
+    for i, log in enumerate(logs):
+        if log["duration_hours"] is None and log["start_time"] and log["end_time"]:
+            d = log["start_time"][:10]
+            logs_by_date[d].append((i, log))
+
+    allocated_times: dict[int, float] = defaultdict(float)
+
+    for _, day_logs in logs_by_date.items():
+        intervals = []
+        for i, log in day_logs:
+            try:
+                st = datetime.fromisoformat(log["start_time"]).timestamp()
+                et = datetime.fromisoformat(log["end_time"]).timestamp()
+                if et > st:
+                    intervals.append((st, et, i))
+            except ValueError:
+                pass
+
+        if not intervals:
+            continue
+
+        points = set()
+        for st, et, _ in intervals:
+            points.add(st)
+            points.add(et)
+        points = sorted(points)
+
+        for k in range(len(points) - 1):
+            t_start = points[k]
+            t_end = points[k + 1]
+            t_duration = t_end - t_start
+
+            if t_duration <= 0:
+                continue
+
+            overlapping_logs = []
+            for st, et, i in intervals:
+                if st <= t_start and et >= t_end:
+                    overlapping_logs.append(i)
+
+            if overlapping_logs:
+                share_seconds = t_duration / len(overlapping_logs)
+                for i in overlapping_logs:
+                    allocated_times[i] += share_seconds
+    # --- End sweep-line ---
+
     # Extract all variables into a flat list of dicts
     extracted_data = []
 
-    for log in logs:
+    for i, log in enumerate(logs):
         job_code = log["job_code"] or ""
         row_data = extract_fields(job_code, compiled_regexes, defaults_config)
 
@@ -232,13 +282,15 @@ def aggregate_logs(
         if group_by_date:
             row_data["_date"] = log["start_time"][:10] if log["start_time"] else ""
 
-        # Prefer explicit duration_hours, fall back to end-start calculation
+        # Prefer explicit duration_hours, then allocated_times, then fallback
         start_time = log["start_time"]
         end_time = log["end_time"]
         duration_hours = log["duration_hours"]
 
         if duration_hours is not None:
             time_hours = duration_hours
+        elif i in allocated_times:
+            time_hours = allocated_times[i] / 3600.0
         elif start_time and end_time:
             start_dt = datetime.fromisoformat(start_time)
             end_dt = datetime.fromisoformat(end_time)
@@ -289,7 +341,8 @@ def aggregate_logs(
                 sorted(
                     (k, str(v))
                     for k, v in item.items()
-                    if k not in (
+                    if k
+                    not in (
                         "_raw_time_hours",
                         "time_hours",
                         "_sum_of_rounded_hours",

@@ -62,7 +62,7 @@ def test_start_unassigned_job():
     assert logs[0]["job_name"] is None
     assert logs[0]["end_time"] is None
 
-    operations.stop_log()
+    operations.stop_all_logs()
     logs = operations.list_logs()
     assert logs[0]["end_time"] is not None
 
@@ -71,6 +71,39 @@ def test_prevent_double_start():
     operations.start_log()
     with pytest.raises(ValueError, match="A job is already running"):
         operations.start_log()
+
+
+def test_allow_double_start_with_force_parallel():
+    log_1 = operations.start_log()
+    # Second one can be started if force_parallel=True
+    log_2 = operations.start_log(force_parallel=True)
+    assert log_1 != log_2
+
+    logs = operations.list_logs()
+    # There should be two running logs
+    running = [log for log in logs if log["end_time"] is None]
+    assert len(running) == 2
+
+
+def test_stop_specific_log():
+    log_1 = operations.start_log()
+    log_2 = operations.start_log(force_parallel=True)
+
+    # Stop only log_1
+    operations.stop_log(log_id=log_1)
+
+    logs = operations.list_logs()
+    log_1_entry = next(log for log in logs if log["id"] == log_1)
+    log_2_entry = next(log for log in logs if log["id"] == log_2)
+
+    assert log_1_entry["end_time"] is not None
+    assert log_2_entry["end_time"] is None
+
+    # Finally stop the remaining Running log (log_2) without arguments
+    operations.stop_all_logs()
+    logs = operations.list_logs()
+    log_2_entry = next(log for log in logs if log["id"] == log_2)
+    assert log_2_entry["end_time"] is not None
 
 
 def test_assign_log_later():
@@ -93,7 +126,7 @@ def test_delete_project_cascades():
     p_id = operations.add_project("Del Project")
     operations.add_job("Del Job", "Del Project")
     operations.start_log("Del Project", "Del Job")
-    operations.stop_log()
+    operations.stop_all_logs()
 
     operations.delete_project(p_id)
 
@@ -159,21 +192,24 @@ def test_update_log_preserves_duration(setup_test_db):
     operations.add_project("P")
     operations.add_job("J", "P")
     operations.start_log("P", "J")
-    operations.stop_log()
+    operations.stop_all_logs()
 
     logs = operations.list_logs()
     log_id = logs[0]["id"]
 
     # Set manual duration
     operations.update_log(
-        log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"],
-        duration_hours=5.5
+        log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"], duration_hours=5.5
     )
 
     # Update memo only
     operations.update_log(
-        log_id, "P", "J", logs[0]["start_time"], logs[0]["end_time"],
-        memo="Updated Memo"
+        log_id,
+        "P",
+        "J",
+        logs[0]["start_time"],
+        logs[0]["end_time"],
+        memo="Updated Memo",
     )
 
     # Check if duration is still 5.5
@@ -184,6 +220,7 @@ def test_update_log_preserves_duration(setup_test_db):
 
 def test_parse_smart_date():
     from datetime import date, timedelta
+
     today = date.today()
 
     # Static keywords

@@ -308,27 +308,32 @@ def is_any_job_running() -> bool:
         return cursor.fetchone() is not None
 
 
-def start_log(project_name: str = None, job_name: str = None):
+def start_log(
+    project_name: str = None, job_name: str = None, force_parallel: bool = False
+):
     """Start tracking a job, optionally leaving it unassigned.
 
     Args:
         project_name (str, optional): The name of the project. Defaults to None.
         job_name (str, optional): The name of the job. Defaults to None.
+        force_parallel (bool, optional): If True, allows starting a new job even if
+            another job is already running. Defaults to False.
 
     Returns:
         int: The ID of the newly created log entry.
 
     Raises:
-        ValueError: If a job is already running, or if the project/job names are
-            not found.
+        ValueError: If a job is already running and force_parallel is False,
+            or if the project/job names are not found.
     """
     with get_connection() as conn:
         cursor = conn.cursor()
 
         # Check if already running
-        cursor.execute("SELECT id FROM logs WHERE end_time IS NULL")
-        if cursor.fetchone():
-            raise ValueError("A job is already running! Please stop it first.")
+        if not force_parallel:
+            cursor.execute("SELECT id FROM logs WHERE end_time IS NULL")
+            if cursor.fetchone():
+                raise ValueError("A job is already running! Please stop it first.")
 
         p_id = None
         j_id = None
@@ -361,29 +366,62 @@ def start_log(project_name: str = None, job_name: str = None):
         return cursor.lastrowid
 
 
-def stop_log():
-    """Stop tracking the currently running job.
+def stop_log(log_id: int):
+    """Stop tracking a specific job.
+
+    Args:
+        log_id (int): The ID of the specific log to stop.
 
     Returns:
         int: The ID of the stopped log entry.
+
+    Raises:
+        ValueError: If the specific log is not running.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT id FROM logs WHERE id = ? AND end_time IS NULL", (log_id,)
+        )
+
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Log ID {log_id} is not running.")
+
+        now = datetime.now().replace(microsecond=0).isoformat()
+        cursor.execute("UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"]))
+        conn.commit()
+        return row["id"]
+
+
+def stop_all_logs():
+    """Stop all currently running jobs.
+
+    Returns:
+        int: The number of stopped log entries.
 
     Raises:
         ValueError: If no running jobs are found.
     """
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id FROM logs WHERE end_time IS NULL "
-            "ORDER BY start_time DESC LIMIT 1"
-        )
-        row = cursor.fetchone()
-        if not row:
+        cursor.execute("SELECT id FROM logs WHERE end_time IS NULL")
+        rows = cursor.fetchall()
+
+        if not rows:
             raise ValueError("No running jobs found.")
 
         now = datetime.now().replace(microsecond=0).isoformat()
-        cursor.execute("UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"]))
+        stopped_count = 0
+        for row in rows:
+            cursor.execute(
+                "UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"])
+            )
+            stopped_count += 1
+
         conn.commit()
-        return row["id"]
+        return stopped_count
 
 
 def assign_log(log_id: int, project_name: str, job_name: str):
