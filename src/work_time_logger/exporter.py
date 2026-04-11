@@ -73,7 +73,7 @@ group_by = ["type", "ticket"]
 # Aggregated time precision and rounding: "round", "floor", or "ceil"
 time_precision = 2
 time_rounding = "round"
-# Aggregation method: "sum_then_round" (default) or "round_then_sum"
+# Aggregation method: "sum_then_round" (default), "round_then_sum", or "round_subtotal_then_sum"
 time_aggregation_method = "sum_then_round"
 
 [export.format]
@@ -318,16 +318,17 @@ def aggregate_logs(
         group_items = list(group_iter)
 
         if time_aggregation_method == "round_then_sum":
-            # Round each individual log entry's time before summing
+            # Traditional: round each individual log entry's time before summing
             agg_time = sum(
                 _apply_rounding(
                     item.get("_raw_time_hours", 0.0), time_precision, time_rounding
                 )
                 for item in group_items
             )
-            # Ensure the final sum also respects precision
-            # (though it should already be a multiple of the precision)
             agg_time = _apply_rounding(agg_time, time_precision, time_rounding)
+        elif time_aggregation_method == "round_subtotal_then_sum":
+            # New: Placeholder for now, calculated below after gathering subtotals
+            agg_time = 0.0
         else:
             # Traditional: sum all raw times, then round the total
             total_time = sum(item.get("_raw_time_hours", 0.0) for item in group_items)
@@ -365,9 +366,16 @@ def aggregate_logs(
 
         # Aggregate notes using Jinja2
         notes = []
+        subtotal_sum_for_agg = 0.0
         for sub_item in sub_groups.values():
             # Calc rounded time for this sub-item for use in template
-            if time_aggregation_method == "round_then_sum":
+            if time_aggregation_method == "round_subtotal_then_sum":
+                # Sum raw then round for subtotal
+                sub_item["time_hours"] = _apply_rounding(
+                    sub_item["_raw_time_hours"], time_precision, time_rounding
+                )
+                subtotal_sum_for_agg += sub_item["time_hours"]
+            elif time_aggregation_method == "round_then_sum":
                 # Matches the total aggregation logic: sum of individually rounded times
                 sub_item["time_hours"] = _apply_rounding(
                     sub_item["_sum_of_rounded_hours"], time_precision, time_rounding
@@ -377,10 +385,14 @@ def aggregate_logs(
                 sub_item["time_hours"] = _apply_rounding(
                     sub_item["_raw_time_hours"], time_precision, time_rounding
                 )
+
             if note_item_template:
                 rendered = _render(note_item_template, sub_item)
                 if rendered:
                     notes.append(rendered)
+
+        if time_aggregation_method == "round_subtotal_then_sum":
+            agg_time = _apply_rounding(subtotal_sum_for_agg, time_precision, time_rounding)
 
         aggregated_notes = note_separator.join(notes)
 

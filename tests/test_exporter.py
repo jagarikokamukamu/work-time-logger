@@ -403,3 +403,160 @@ job_code = "NEW_{{ num }}"
     assert job is not None
     assert job["description"] == "New: updated memo"
     assert job["code"] == "NEW_999"
+def test_time_aggregation_method_subtotal(tmp_path: Path):
+    """Test round_subtotal_then_sum method.
+    It should round the sum of raw hours for each sub-group (memo),
+    then sum those rounded subtotals.
+    """
+    operations.add_project("AggSubProject")
+    operations.add_job("Job1", "AggSubProject", code="T-001")
+
+    # Grouping:
+    # Subgroup A (Memo A): 0.55 + 0.55 = 1.10. Round(1, 1) -> 1.1
+    # Subgroup B (Memo B): 0.44 + 0.44 = 0.88. Round(1, 1) -> 0.9
+    # Total aggregated_time: 1.1 + 0.9 = 2.0
+
+    # For comparison:
+    # sum_then_round: (0.55*2 + 0.44*2) = 1.10 + 0.88 = 1.98 -> 2.0
+    # (In this specific case it might hit the same, but let's use values that differ)
+
+    # Let's adjust values:
+    # Sub A: 1.16 + 1.16 = 2.32 -> Round(1) = 2.3
+    # Sub B: 1.16 + 1.16 = 2.32 -> Round(1) = 2.3
+    # sum_then_round: (1.16*4) = 4.64 -> 4.6
+    # round_then_sum: 1.2 * 4 = 4.8
+    # round_subtotal_then_sum: 2.3 + 2.3 = 4.6
+
+    # Wait, let's find values where all three differ:
+    # Sub A: 1.14 + 1.14 = 2.28 -> SubRound=2.3, LogRound=1.1,1.1 Sum=2.2
+    # Sub B: 1.14 + 1.14 = 2.28 -> SubRound=2.3, LogRound=1.1,1.1 Sum=2.2
+    # sum_then_round: 2.28 * 2 = 4.56 -> 4.6
+    # round_then_sum: 1.1 * 4 = 4.4
+    # round_subtotal_then_sum: 2.3 + 2.3 = 4.6 (Still same as sum_then_round here)
+
+    # Let's try:
+    # Sub A: 1.04 + 1.04 = 2.08 -> SubRound=2.1, LogRound=1.0,1.0 Sum=2.0
+    # Sub B: 1.04 + 1.04 = 2.08 -> SubRound=2.1, LogRound=1.0,1.0 Sum=2.0
+    # sum_then_round: 2.08 * 2 = 4.16 -> 4.2
+    # round_then_sum: 1.0 * 4 = 4.0
+    # round_subtotal_then_sum: 2.1 + 2.1 = 4.2
+
+    # One more try for distinct:
+    # Sub A: 1.05 + 1.05 = 2.10 -> SubRound=2.1, LogRound=1.1,1.1 Sum=2.2
+    # Sub B: 1.05 + 1.05 = 2.10 -> SubRound=2.1, LogRound=1.1,1.1 Sum=2.2
+    # sum_then_round: 2.10 * 2 = 4.20 -> 4.2
+    # round_then_sum: 1.1 * 4 = 4.4
+    # round_subtotal_then_sum: 2.1 + 2.1 = 4.2
+
+    # Okay, distinct enough to tell round_then_sum apart.
+    # To tell sum_then_round and round_subtotal_then_sum apart:
+    # Sub A: 1.06 + 1.06 = 2.12 -> SubRound=2.1, LogRound=1.1,1.1 Sum=2.2
+    # Sub B: 1.06 + 1.06 = 2.12 -> SubRound=2.1, LogRound=1.1,1.1 Sum=2.2
+    # Total Raw = 4.24 -> sum_then_round = 4.2
+    # round_subtotal_then_sum = 2.1 + 2.1 = 4.2
+
+    # Actually, most of the time sum_then_round and round_subtotal_then_sum are close.
+    # The key is that round_subtotal_then_sum matches the notes.
+
+    for memo in ["Memo A", "Memo B"]:
+        for _ in range(2):
+            lid = operations.create_empty_log()
+            operations.update_log(
+                lid,
+                "AggSubProject",
+                "Job1",
+                "2024-04-01T10:00:00",
+                "2024-04-01T10:00:00",
+                memo=memo,
+                duration_hours=1.06,
+            )
+
+    profile_path = tmp_path / "profile_sub.toml"
+
+    def run_export_sub(method: str) -> tuple[float, list[str]]:
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(f"""
+[export.extract]
+job_code = "^(?P<kind>[A-Z]+)-(?P<num>\\\\d+)$"
+[export]
+group_by = ["kind"]
+time_precision = 1
+time_rounding = "round"
+time_aggregation_method = "{method}"
+[export.format]
+note_item = "{{{{ time_hours }}}}"
+note_separator = "/"
+[export.columns]
+"time" = "{{{{ aggregated_time }}}}"
+"notes" = "{{{{ aggregated_notes }}}}"
+""")
+        out = tmp_path / f"out_sub_{method}.csv"
+        exporter.export_logs(str(profile_path), str(out), target_date=None)
+        with open(out, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+            return float(row["time"]), row["notes"].split("/")
+
+    # round_then_sum: each log 1.06 -> 1.1.
+    # Total aggregated_time = (1.1 * 4) = 4.4
+    # Note logic: subtotals are sum of rounded logs, so 1.1 + 1.1 = 2.2
+    t1, n1 = run_export_sub("round_then_sum")
+    assert t1 == 4.4
+    assert all(val == "2.2" for val in n1)
+
+    # sum_then_round: (1.06 * 4) = 4.24 -> 4.2.
+    # Note logic: raw sum then round, so (1.06 + 1.06) = 2.12 -> 2.1
+    t2, n2 = run_export_sub("sum_then_round")
+    assert t2 == 4.2
+    assert all(val == "2.1" for val in n2)
+
+    # round_subtotal_then_sum: (1.06 + 1.06) = 2.12 -> 2.1.
+    # Total aggregated_time = 2.1 + 2.1 = 4.2
+    t3, n3 = run_export_sub("round_subtotal_then_sum")
+    assert t3 == 4.2
+    assert all(val == "2.1" for val in n3)
+
+    # Let's find a case where sum_then_round and round_subtotal_then_sum differ:
+    # Sub A: 1.04 + 1.04 = 2.08 -> 2.1
+    # Sub B: 1.04 + 1.04 = 2.08 -> 2.1
+    # Total Raw = 4.16 -> sum_then_round = 4.2
+    # round_subtotal_then_sum = 2.1 + 2.1 = 4.2 (Still same...)
+
+    # Case:
+    # Sub A: 1.03 (1 log) -> 1.0
+    # Sub B: 1.03 (1 log) -> 1.0
+    # Total Raw = 2.06 -> sum_then_round = 2.1
+    # round_subtotal_then_sum = 1.0 + 1.0 = 2.0
+    # (With precision=1, round)
+
+    operations.add_project("DiffProject")
+    operations.add_job("Job1", "DiffProject", code="D-001")
+    for memo in ["M1", "M2"]:
+        lid = operations.create_empty_log()
+        operations.update_log(
+            lid, "DiffProject", "Job1", "2024-04-02T10:00:00", "2024-04-02T10:00:00",
+            memo=memo, duration_hours=1.03
+        )
+
+    def run_export_diff(method: str) -> float:
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(f"""
+[export.extract]
+job_code = "^(?P<kind>[A-Z]+)-(?P<num>\\\\d+)$"
+[export]
+group_by = ["kind"]
+time_precision = 1
+time_rounding = "round"
+time_aggregation_method = "{method}"
+[export.columns]
+"time" = "{{{{ aggregated_time }}}}"
+""")
+        out = tmp_path / f"out_diff_{method}.csv"
+        exporter.export_logs(str(profile_path), str(out), target_date=None)
+        with open(out, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+            return float(row["time"])
+
+    assert run_export_diff("sum_then_round") == 2.1
+    assert run_export_diff("round_subtotal_then_sum") == 2.0
