@@ -58,6 +58,10 @@ def _apply_rounding(value: float, precision: int, method: str) -> float:
 
 
 DEFAULT_PROFILE_TEMPLATE = """\
+[tui]
+# Copy memo from the original log when restarting a job
+copy_memo_on_restart = true
+
 [export.extract]
 # Extract attributes from job_code using regex named groups
 job_code = "^(?P<type>[A-Za-z]+)-(?P<ticket>\\\\d+)$"

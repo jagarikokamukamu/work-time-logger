@@ -252,3 +252,16 @@ def test_parse_smart_date():
     # Invalid
     assert operations.parse_smart_date("invalid") is None
     assert operations.parse_smart_date("13/32") is None  # Invalid day
+
+
+def test_start_log_with_memo():
+    operations.add_project("MemoProject")
+    operations.add_job("MemoJob", "MemoProject")
+
+    # Start log with a specific memo
+    log_id = operations.start_log("MemoProject", "MemoJob", memo="Initial memo")
+    assert log_id == 1
+
+    logs = operations.list_logs()
+    assert len(logs) == 1
+    assert logs[0]["memo"] == "Initial memo"

@@ -162,6 +162,7 @@ class WtlApp(App):
 
         # Load duration step from profile
         self.duration_step = 0.1
+        self.copy_memo_on_restart = True
         try:
             profile_path = db.DB_DIR / "profile.toml"
             if profile_path.exists():
@@ -169,7 +170,9 @@ class WtlApp(App):
 
                 with open(profile_path, "rb") as f:
                     config = tomllib.load(f)
-                    self.duration_step = config.get("tui", {}).get("duration_step", 0.1)
+                    tui_cfg = config.get("tui", {})
+                    self.duration_step = tui_cfg.get("duration_step", 0.1)
+                    self.copy_memo_on_restart = tui_cfg.get("copy_memo_on_restart", True)
         except (OSError, tomllib.TOMLDecodeError):
             # Profile is optional; if missing or broken, TUI will use defaults.
             pass
@@ -729,20 +732,21 @@ class WtlApp(App):
 
         project_name = log_entry["project_name"]
         job_name = log_entry["job_name"]
+        memo = log_entry["memo"] if self.copy_memo_on_restart else ""
 
-        self._start_log_with_config(project_name, job_name)
+        self._start_log_with_config(project_name, job_name, memo)
 
     def _start_log_with_config(
-        self, project_name: str | None, job_name: str | None
+        self, project_name: str | None, job_name: str | None, memo: str = ""
     ) -> None:
         """Helper to start a log, handling parallel tracking confirmation if needed."""
         if operations.is_any_job_running():
 
-            def cb(res: bool) -> None:
+            def cb(res: bool, memo=memo) -> None:
                 if res:
                     try:
                         operations.start_log(
-                            project_name, job_name, force_parallel=True
+                            project_name, job_name, memo=memo, force_parallel=True
                         )
                         self.refresh_data()
                     except Exception as e:
@@ -760,7 +764,7 @@ class WtlApp(App):
             return
 
         try:
-            operations.start_log(project_name, job_name)
+            operations.start_log(project_name, job_name, memo=memo)
             self.refresh_data()
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")

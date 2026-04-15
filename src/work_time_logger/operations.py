@@ -309,7 +309,10 @@ def is_any_job_running() -> bool:
 
 
 def start_log(
-    project_name: str = None, job_name: str = None, force_parallel: bool = False
+    project_name: str = None,
+    job_name: str = None,
+    memo: str = "",
+    force_parallel: bool = False,
 ):
     """Start tracking a job, optionally leaving it unassigned.
 
@@ -359,8 +362,8 @@ def start_log(
 
         now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute(
-            "INSERT INTO logs (project_id, job_id, start_time) VALUES (?, ?, ?)",
-            (p_id, j_id, now),
+            "INSERT INTO logs (project_id, job_id, start_time, memo) VALUES (?, ?, ?, ?)",
+            (p_id, j_id, now, memo),
         )
         conn.commit()
         return cursor.lastrowid
