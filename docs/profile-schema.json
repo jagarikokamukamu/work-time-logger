@@ -153,6 +153,25 @@
           }
         }
       }
+    },
+    "tui": {
+      "type": "object",
+      "description": "TUI (Terminal User Interface) specific settings.",
+      "additionalProperties": false,
+      "properties": {
+        "duration_step": {
+          "type": "number",
+          "description": "Step for duration adjustment (+/- keys) in the TUI edit overlay.",
+          "default": 0.1,
+          "minimum": 0.01,
+          "maximum": 1.0
+        },
+        "copy_memo_on_restart": {
+          "type": "boolean",
+          "description": "Copy memo from the original log when restarting a job using the 'r' key.",
+          "default": true
+        }
+      }
     }
   }
 }

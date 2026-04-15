@@ -61,6 +61,8 @@ DEFAULT_PROFILE_TEMPLATE = """\
 [tui]
 # Copy memo from the original log when restarting a job
 copy_memo_on_restart = true
+# Step for duration adjustment (+/- keys) in the TUI edit overlay
+duration_step = 0.1
 
 [export.extract]
 # Extract attributes from job_code using regex named groups
