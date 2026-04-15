@@ -7,6 +7,7 @@ the work time logger via the command line.
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from . import db, operations
 
@@ -173,7 +174,7 @@ def list_projects():
     projects = operations.list_projects()
     table = Table("ID", "Project Name")
     for p in projects:
-        table.add_row(str(p["id"]), p["name"])
+        table.add_row(Text(str(p["id"])), Text(p["name"]))
     console.print(table)
 
 
@@ -285,8 +286,8 @@ def list_jobs(
                 )
                 # Render columns
                 rendered = exporter.render_columns(columns_config, ctx)
-                row = [str(j["id"]), j["name"]] + [
-                    rendered.get(h, "") for h in columns_config.keys()
+                row = [Text(str(j["id"])), Text(j["name"])] + [
+                    Text(str(rendered.get(h, ""))) for h in columns_config.keys()
                 ]
                 table.add_row(*row)
             console.print(table)
@@ -295,7 +296,7 @@ def list_jobs(
     else:
         table = Table("ID", "Job Name", "Project")
         for j in jobs:
-            table.add_row(str(j["id"]), j["name"], j["project_name"])
+            table.add_row(Text(str(j["id"])), Text(j["name"]), Text(j["project_name"]))
         console.print(table)
 
 
@@ -461,13 +462,13 @@ def list_logs():
         end_time = log_entry["end_time"] or "Running..."
         memo = log_entry["memo"] if log_entry["memo"] else ""
         table.add_row(
-            str(log_entry["id"]),
-            p_name,
-            j_name,
-            j_code,
-            log_entry["start_time"][:19],
-            end_time[:19] if end_time != "Running..." else "Running...",
-            memo,
+            Text(str(log_entry["id"])),
+            Text(str(p_name)),
+            Text(str(j_name)),
+            Text(str(j_code)),
+            Text(log_entry["start_time"][:19]),
+            Text(end_time[:19] if end_time != "Running..." else "Running..."),
+            Text(str(memo)),
         )
     console.print(table)
 

@@ -122,8 +122,8 @@ class DailySummaryScreen(Screen):
             if not aggregated_results:
                 info_text.update("[yellow]No logs found[/yellow]")
                 viz.set_intervals([])
-                table.add_columns("Status")
-                table.add_row("No data")
+                table.add_columns(Text("Status"))
+                table.add_row(Text("No data"))
                 return
 
             starts = [
@@ -197,8 +197,8 @@ class DailySummaryScreen(Screen):
 
         except Exception as e:
             info_text.update(f"[red]Error: {e}[/red]")
-            table.add_columns("Error")
-            table.add_row(str(e))
+            table.add_columns(Text("Error"))
+            table.add_row(Text(str(e)))
 
     def action_prev_day(self) -> None:
         """Move to the previous day."""

@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
@@ -169,7 +170,12 @@ class DashboardScreen(Screen):
         for p, h in sorted_projects:
             pct = (h / total_period_hours * 100) if total_period_hours > 0 else 0
             bar = "█" * int(pct / 5)
-            table.add_row(p, f"{h:.2f}", f"{pct:.1f}%", f"[#79a8a8]{bar}[/#79a8a8]")
+            table.add_row(
+                Text(str(p)),
+                Text(f"{h:.2f}"),
+                Text(f"{pct:.1f}%"),
+                Text(bar, style="#79a8a8"),
+            )
 
         # 2. Daily Activity Chart (Simple ASCII)
         chart_static = self.query_one("#activity-chart", Static)

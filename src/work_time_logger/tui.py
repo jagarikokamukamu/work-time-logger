@@ -14,8 +14,10 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
+    Static,
     Tree,
 )
+from rich.text import Text
 
 from . import db, operations
 from .modals import (
@@ -297,34 +299,34 @@ class WtlApp(App):
 
             if duration_hours is not None:
                 # duration_hours manually set: strike and dim start/end
-                dim_start = f"[strike][#585858]{start_disp}[/#585858][/strike]"
-                dim_end = f"[strike][#585858]{end_disp}[/#585858][/strike]"
-                dur_str = str(duration_hours)
+                dim_start = Text(start_disp, style="strike #585858")
+                dim_end = Text(end_disp, style="strike #585858")
+                dur_str = Text(str(duration_hours))
             else:
-                dim_start = start_disp
-                dim_end = end_disp
+                dim_start = Text(start_disp)
+                dim_end = Text(end_disp)
                 try:
                     if start_iso and end_iso:
                         s = datetime.fromisoformat(start_iso)
                         e = datetime.fromisoformat(end_iso)
                         calc = round((e - s).total_seconds() / 3600, 2)
-                        dur_str = f"[#79a8a8]{calc}[/#79a8a8]"
+                        dur_str = Text(f"{calc}", style="#79a8a8")
                     else:
-                        dur_str = ""
+                        dur_str = Text("")
                 except (ValueError, TypeError):
                     # In case of malformed ISO strings or other calculation errors,
                     # we display an empty string rather than crashing the TUI.
-                    dur_str = ""
+                    dur_str = Text("")
 
             self.logs_table.add_row(
-                str(log_entry["id"]),
-                p_name,
-                j_name,
-                log_date,
+                Text(str(log_entry["id"])),
+                Text(str(p_name)),
+                Text(str(j_name)),
+                Text(str(log_date)),
                 dim_start,
                 dim_end,
                 dur_str,
-                memo,
+                Text(str(memo)),
                 key=str(log_entry["id"]),
             )
 

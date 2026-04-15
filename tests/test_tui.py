@@ -51,9 +51,9 @@ async def test_tui_startup_population():
         assert table.row_count == 1
         row = table.get_row_at(0)
         assert len(row) == 8
-        assert row[1] == "Test Project"
-        assert row[2] == "Test Job"
-        assert row[3] == datetime.now().strftime("%Y-%m-%d")
+        assert str(row[1]) == "Test Project"
+        assert str(row[2]) == "Test Job"
+        assert str(row[3]) == datetime.now().strftime("%Y-%m-%d")
 
 
 @pytest.mark.asyncio
@@ -67,8 +67,8 @@ async def test_tui_add_empty_log():
         table = app.query_one(DataTable)
         assert table.row_count == 1
         row = table.get_row_at(0)
-        assert row[1] == "[未割り当て]"
-        assert row[2] == "[未割り当て]"
+        assert str(row[1]) == "[未割り当て]"
+        assert str(row[2]) == "[未割り当て]"
 
 
 @pytest.mark.asyncio
@@ -176,7 +176,7 @@ async def test_tui_filtering():
         await pilot.pause()
 
         assert table.row_count == 1
-        assert table.get_row_at(0)[1] == "P1"
+        assert str(table.get_row_at(0)[1]) == "P1"
 
 
 @pytest.mark.asyncio
@@ -455,6 +455,6 @@ async def test_tui_restart_job():
 
         # The new one should be at the top (row 0) as logs are sorted DESC
         new_row = table.get_row_at(0)
-        assert new_row[1] == "RestartProj"
-        assert new_row[2] == "RestartJob"
+        assert str(new_row[1]) == "RestartProj"
+        assert str(new_row[2]) == "RestartJob"
         assert "Running..." in str(new_row[5])  # End Time column

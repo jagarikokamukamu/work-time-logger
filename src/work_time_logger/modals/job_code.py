@@ -104,10 +104,10 @@ class JobCodeModal(BaseModal):
         prev_table = self.query_one("#preview-table", CopyableDataTable)
 
         attr_table.clear(columns=True)
-        attr_table.add_columns("Attribute", "Value")
+        attr_table.add_columns(Text("Attribute"), Text("Value"))
 
         prev_table.clear(columns=True)
-        prev_table.add_columns("Export Column", "Preview Value")
+        prev_table.add_columns(Text("Export Column"), Text("Preview Value"))
 
         title = self.query_one("#job-code-title", Static)
         title.update(f"Job Details: {self.job_name}")
@@ -116,7 +116,7 @@ class JobCodeModal(BaseModal):
             self._refresh_import_mode(attr_table)
             self._refresh_export_mode(prev_table)
         except Exception as e:
-            attr_table.add_row("Error", str(e))
+            attr_table.add_row(Text("Error"), Text(str(e)))
 
         # Focus attributes table if nothing is focused or returning from edit
         if self.focused not in (attr_table, prev_table):
