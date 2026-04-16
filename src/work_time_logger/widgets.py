@@ -193,52 +193,91 @@ class TimelineVisualizer(Static):
         Overlapping intervals (prorated time) are visually indicated.
         """
         bar_width = 48
-        cell_colors = [[] for _ in range(bar_width)]
-
+        
+        parsed_intervals = []
         for start_iso, end_iso, color in self.intervals:
             if not start_iso or not end_iso:
                 continue
             try:
                 s = datetime.fromisoformat(start_iso)
                 e = datetime.fromisoformat(end_iso)
-
                 start_f = s.hour + s.minute / 60.0 + s.second / 3600.0
                 end_f = e.hour + e.minute / 60.0 + e.second / 3600.0
-
-                start_idx = int(start_f * (bar_width / 24.0))
-                end_idx = int(end_f * (bar_width / 24.0))
-
-                # Make sure we color at least one block if it's a very short log
-                if end_idx == start_idx and start_idx < bar_width:
-                    cell_colors[start_idx].append(color)
-                else:
-                    for i in range(start_idx, min(end_idx, bar_width)):
-                        cell_colors[i].append(color)
+                
+                # Make sure end_f > start_f slightly if they are identical but we want to render it
+                if end_f == start_f:
+                    end_f += 0.001
+                    
+                parsed_intervals.append((start_f, end_f, color))
             except (ValueError, TypeError):
                 continue
 
+        final_cell_colors = [[] for _ in range(bar_width)]
+
+        for i in range(bar_width):
+            block_start = i * (24.0 / bar_width)
+            block_end = (i + 1) * (24.0 / bar_width)
+            
+            overlaps = []
+            for s_f, e_f, color in parsed_intervals:
+                # Intersect interval with the block range
+                inter_s = max(s_f, block_start)
+                inter_e = min(e_f, block_end)
+                dur = inter_e - inter_s
+                
+                if dur > 0:
+                    overlaps.append((color, dur, s_f, e_f))
+                    
+            if not overlaps:
+                continue
+                
+            # Aggregate durations by color in this block
+            color_info = {}
+            for color, dur, s_f, e_f in overlaps:
+                if color not in color_info:
+                    color_info[color] = {"dur": 0.0, "intervals": []}
+                color_info[color]["dur"] += dur
+                color_info[color]["intervals"].append((s_f, e_f))
+                
+            sorted_colors = sorted(color_info.keys(), key=lambda c: color_info[c]["dur"], reverse=True)
+            
+            # Check for actual time overlap between DIFFERENT colors
+            true_overlap = False
+            for c1 in sorted_colors:
+                for c2 in sorted_colors:
+                    if c1 == c2:
+                        continue
+                    
+                    for s1, e1 in color_info[c1]["intervals"]:
+                        for s2, e2 in color_info[c2]["intervals"]:
+                            if max(s1, s2) < min(e1, e2):
+                                true_overlap = True
+                                break
+                        if true_overlap: break
+                if true_overlap: break
+                
+            if true_overlap:
+                final_cell_colors[i] = sorted_colors[:3]
+            else:
+                final_cell_colors[i] = [sorted_colors[0]]
+
         text = Text()
-        for colors in cell_colors:
+        for colors in final_cell_colors:
             if not colors:
                 text.append(" ", style="on #2e2e2e")
             elif len(colors) == 1:
                 col = colors[0] if colors[0] else "#79a8a8"
                 text.append(" ", style=f"on {col}")
             else:
-                unique_colors = list(
-                    dict.fromkeys(colors)
-                )  # preserve order, make unique
-                col1 = unique_colors[0] if unique_colors[0] else "#79a8a8"
-                if len(unique_colors) == 2:
-                    col2 = unique_colors[1] if unique_colors[1] else "#79a8a8"
+                col1 = colors[0] if colors[0] else "#79a8a8"
+                if len(colors) == 2:
+                    col2 = colors[1] if colors[1] else "#79a8a8"
                     # Upper half (fg) is col1, lower half (bg) is col2
                     text.append("▀", style=f"{col1} on {col2}")
-                elif len(unique_colors) > 2:
-                    col2 = unique_colors[1] if unique_colors[1] else "#79a8a8"
+                elif len(colors) > 2:
+                    col2 = colors[1] if colors[1] else "#79a8a8"
                     # 3 or more: Use a triple-bar indicating multiple layers
                     text.append("☰", style=f"{col1} on {col2}")
-                else:
-                    text.append("▀", style=f"{col1} on {col1}")
 
         ruler_str = (
             "0" + " " * 10 + "6" + " " * 11 + "12" + " " * 11 + "18" + " " * 9 + "24"
