@@ -204,14 +204,11 @@ class WtlApp(App):
         self.filter_date_start = None
         self.filter_date_end = None
         self.show_archived = False
-
-        # Default favorite appearance
         self.favorite_mark = "🌟"
         self.favorite_style = ""
-
-        # Load duration step from profile
         self.duration_step = 0.1
         self.copy_memo_on_restart = True
+
         try:
             profile_path = db.DB_DIR / "profile.toml"
             if profile_path.exists():
@@ -220,12 +217,18 @@ class WtlApp(App):
                 with open(profile_path, "rb") as f:
                     config = tomllib.load(f)
                     tui_cfg = config.get("tui", {})
-                    self.duration_step = tui_cfg.get("duration_step", 0.1)
-                    self.copy_memo_on_restart = tui_cfg.get(
-                        "copy_memo_on_restart", True
+                    self.duration_step = tui_cfg.get(
+                        "duration_step", self.duration_step
                     )
-                    self.favorite_mark = tui_cfg.get("favorite_mark", "🌟")
-                    self.favorite_style = tui_cfg.get("favorite_style", "")
+                    self.copy_memo_on_restart = tui_cfg.get(
+                        "copy_memo_on_restart", self.copy_memo_on_restart
+                    )
+                    self.favorite_mark = tui_cfg.get(
+                        "favorite_mark", self.favorite_mark
+                    )
+                    self.favorite_style = tui_cfg.get(
+                        "favorite_style", self.favorite_style
+                    )
         except (OSError, tomllib.TOMLDecodeError):
             # Profile is optional; if missing or broken, TUI will use defaults.
             pass
