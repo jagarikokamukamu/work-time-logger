@@ -97,16 +97,59 @@ def add_project(name: str):
         return cursor.lastrowid
 
 
-def list_projects():
-    """List all projects in the database.
+def list_projects(include_archived: bool = False):
+    """List projects in the database.
+
+    Args:
+        include_archived (bool): If True, all projects are listed.
+            If False, only non-archived projects are returned.
 
     Returns:
         list[sqlite3.Row]: A list of project records.
     """
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM projects")
+        if include_archived:
+            cursor.execute("SELECT * FROM projects")
+        else:
+            cursor.execute("SELECT * FROM projects WHERE is_archived = 0")
         return cursor.fetchall()
+
+
+def set_project_archived(name: str, archived: bool):
+    """Set the archived status of a project.
+
+    Args:
+        name (str): The name of the project.
+        archived (bool): The new archived status.
+
+    Raises:
+        ValueError: If the project name is not found.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE projects SET is_archived = ? WHERE name = ?",
+            (1 if archived else 0, name),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError(f"Project '{name}' not found.")
+        conn.commit()
+
+
+def get_project(name: str):
+    """Get project details by name.
+
+    Args:
+        name (str): The name of the project.
+
+    Returns:
+        sqlite3.Row | None: The project record or None if not found.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM projects WHERE name = ?", (name,))
+        return cursor.fetchone()
 
 
 def delete_project(project_id: int):
@@ -153,34 +196,39 @@ def add_job(name: str, project_name: str, description: str = "", code: str = Non
         return cursor.lastrowid
 
 
-def list_jobs(project_name: str = None):
-    """List all jobs, optionally filtering by project name.
+def list_jobs(project_name: str = None, include_archived: bool = False):
+    """List jobs, optionally filtering by project name and/or archival status.
 
     Args:
         project_name (str, optional): The name of the project to filter by.
             Defaults to None.
+        include_archived (bool): If True, jobs from archived projects are included.
+            If False, only jobs from active projects are returned.
 
     Returns:
         list[sqlite3.Row]: A list of job records with joined project names.
     """
     with get_connection() as conn:
         cursor = conn.cursor()
+        query = """
+            SELECT jobs.*, projects.name as project_name, projects.is_archived
+            FROM jobs
+            JOIN projects ON jobs.project_id = projects.id
+        """
+        conditions = []
+        params = []
+
         if project_name:
-            cursor.execute(
-                """
-                SELECT jobs.*, projects.name as project_name
-                FROM jobs
-                JOIN projects ON jobs.project_id = projects.id
-                WHERE projects.name = ?
-            """,
-                (project_name,),
-            )
-        else:
-            cursor.execute("""
-                SELECT jobs.*, projects.name as project_name
-                FROM jobs
-                JOIN projects ON jobs.project_id = projects.id
-            """)
+            conditions.append("projects.name = ?")
+            params.append(project_name)
+
+        if not include_archived:
+            conditions.append("projects.is_archived = 0")
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        cursor.execute(query, tuple(params))
         return cursor.fetchall()
 
 

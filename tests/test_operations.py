@@ -265,3 +265,42 @@ def test_start_log_with_memo():
     logs = operations.list_logs()
     assert len(logs) == 1
     assert logs[0]["memo"] == "Initial memo"
+
+
+def test_project_archive(setup_test_db):
+    """Test project archiving and its effects on listing."""
+    operations.add_project("Active Proj")
+    operations.add_project("Target Proj")
+    
+    # Initial state: both active
+    projects = operations.list_projects()
+    assert len(projects) == 2
+    
+    # Archive one
+    operations.set_project_archived("Target Proj", True)
+    
+    # list_projects defaults to False
+    projects = operations.list_projects()
+    assert len(projects) == 1
+    assert projects[0]["name"] == "Active Proj"
+    
+    # include_archived=True should show both
+    projects = operations.list_projects(include_archived=True)
+    assert len(projects) == 2
+    
+    # Add job to archived project
+    operations.add_job("Job in Archived", "Target Proj")
+    
+    # list_jobs defaults to False
+    jobs = operations.list_jobs()
+    assert len(jobs) == 0
+    
+    # list_jobs(include_archived=True) should show it
+    jobs = operations.list_jobs(include_archived=True)
+    assert len(jobs) == 1
+    assert jobs[0]["name"] == "Job in Archived"
+    
+    # Unarchive
+    operations.set_project_archived("Target Proj", False)
+    projects = operations.list_projects()
+    assert len(projects) == 2

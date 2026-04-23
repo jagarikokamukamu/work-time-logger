@@ -166,16 +166,60 @@ def add_project(
 
 
 @project_app.command("list")
-def list_projects():
+def list_projects(
+    all: bool = typer.Option(
+        False, "--all", "-a", help="Show all projects including archived ones."
+    ),
+):
     """List all projects.
 
-    Displays a table of all registered projects and their internal IDs.
+    Displays a table of registered projects, their internal IDs, and archival status.
     """
-    projects = operations.list_projects()
-    table = Table("ID", "Project Name")
+    projects = operations.list_projects(include_archived=all)
+    table = Table("ID", "Project Name", "Status")
     for p in projects:
-        table.add_row(Text(str(p["id"])), Text(p["name"]))
+        status = "[yellow]Archived[/yellow]" if p["is_archived"] else "[green]Active[/green]"
+        table.add_row(Text(str(p["id"])), Text(p["name"]), status)
     console.print(table)
+
+
+@project_app.command("archive")
+def archive_project(
+    name: str = typer.Option(
+        ..., "--project", "-p", help="Name of the project to archive.",
+        autocompletion=complete_project_name
+    ),
+):
+    """Archive a project.
+
+    Sets the project as archived so it no longer appears in default lists.
+    """
+    try:
+        operations.set_project_archived(name, True)
+        console.print(f"[green]Project '{name}' archived.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@project_app.command("unarchive")
+def unarchive_project(
+    name: str = typer.Option(
+        ..., "--project", "-p", help="Name of the project to unarchive.",
+        autocompletion=lambda incomplete: [
+            p["name"] for p in operations.list_projects(include_archived=True)
+            if p["is_archived"] and p["name"].startswith(incomplete)
+        ]
+    ),
+):
+    """Unarchive a project.
+
+    Restores a previously archived project to active status.
+    """
+    try:
+        operations.set_project_archived(name, False)
+        console.print(f"[green]Project '{name}' unarchived.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
 
 
 @project_app.command("delete")

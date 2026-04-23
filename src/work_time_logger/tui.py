@@ -57,7 +57,30 @@ class ProjectsTree(Tree):
         Binding("enter", "select_cursor", "Start Job", show=True),
         Binding("a", "add_job_log", "Add Log", show=True),
         Binding("c", "show_job_code", "Show Job Code", show=True),
+        Binding("z", "toggle_archive", "Archive/Unarchive", show=True),
     ]
+
+    def action_toggle_archive(self) -> None:
+        """Toggles the archival status of the selected project."""
+        node = self.cursor_node
+        if node and node.data:
+            # If leaf, get parent (project)
+            if node.data["type"] == "job":
+                node = node.parent
+            
+            if not node or not node.data or node.data["type"] != "project":
+                return
+
+            project_name = node.data["project_name"]
+            
+            try:
+                p = operations.get_project(project_name)
+                if p:
+                    new_status = not p["is_archived"]
+                    operations.set_project_archived(project_name, new_status)
+                    self.app.refresh_data()
+            except Exception as e:
+                self.app.notify(f"Error: {e}", severity="error")
 
     def action_show_job_code(self) -> None:
         """Shows the expansion of the job code for the selected job.
@@ -66,9 +89,9 @@ class ProjectsTree(Tree):
         `JobCodeModal` with the rendered columns.
         """
         node = self.cursor_node
-        if node and not node.allow_expand:
-            job_name = str(node.label)
-            project_name = str(node.parent.label)
+        if node and node.data and node.data["type"] == "job":
+            job_name = node.data["job_name"]
+            project_name = node.data["project_name"]
             self.app.push_screen(JobCodeModal(project_name, job_name))
 
     def action_add_job_log(self) -> None:
@@ -78,9 +101,9 @@ class ProjectsTree(Tree):
         `operations.create_assigned_log` and refreshes the application data.
         """
         node = self.cursor_node
-        if node and not node.allow_expand:
-            job_name = str(node.label)
-            project_name = str(node.parent.label)
+        if node and node.data and node.data["type"] == "job":
+            job_name = node.data["job_name"]
+            project_name = node.data["project_name"]
             try:
                 operations.create_assigned_log(project_name, job_name)
                 self.app.refresh_data()
@@ -148,6 +171,7 @@ class WtlApp(App):
         Binding("f1", "show_help", "Help", show=False),
         Binding("S", "start_unassigned", "Start Unassigned Timer", show=False),
         Binding("A", "add_empty_log", "Add Empty Log", show=False),
+        Binding("Z", "toggle_show_archived", "Toggle Archived", show=True),
     ]
 
     def __init__(self, **kwargs):
@@ -161,6 +185,7 @@ class WtlApp(App):
         self.filter_job = None
         self.filter_date_start = None
         self.filter_date_end = None
+        self.show_archived = False
 
         # Load duration step from profile
         self.duration_step = 0.1
@@ -241,20 +266,39 @@ class WtlApp(App):
         # If the tree is empty (initial load), we'll default to expanding everything.
         is_initial_load = not any(self.projects_tree.root.children)
         expanded_projects = {
-            str(node.label)
+            node.data["project_name"]
             for node in self.projects_tree.root.children
-            if node.is_expanded
+            if node.is_expanded and node.data and "project_name" in node.data
         }
 
         # Populate Projects and Jobs tree
         self.projects_tree.clear()
-        projects = operations.list_projects()
+        projects = operations.list_projects(include_archived=self.show_archived)
         for p in projects:
-            should_expand = is_initial_load or (p["name"] in expanded_projects)
-            p_node = self.projects_tree.root.add(p["name"], expand=should_expand)
-            jobs = operations.list_jobs(p["name"])
+            p_name = p["name"]
+            is_archived = p["is_archived"]
+            
+            if is_archived:
+                label = Text(f"[A] {p_name}", style="italic dim")
+            else:
+                label = p_name
+                
+            should_expand = is_initial_load or (p_name in expanded_projects)
+            
+            p_node = self.projects_tree.root.add(
+                label,
+                expand=should_expand,
+                data={"type": "project", "project_name": p_name, "is_archived": is_archived}
+            )
+            
+            jobs = operations.list_jobs(p_name, include_archived=True)
             for j in jobs:
-                p_node.add_leaf(j["name"])
+                j_name = j["name"]
+                j_label = Text(j_name, style="dim") if is_archived else j_name
+                p_node.add_leaf(
+                    j_label,
+                    data={"type": "job", "job_name": j_name, "project_name": p_name}
+                )
 
         # Populate Logs table
         self.logs_table.clear()
@@ -357,9 +401,9 @@ class WtlApp(App):
             event (Tree.NodeSelected): The event object containing information about
                 the selected node.
         """
-        if not event.node.allow_expand:
-            job_name = str(event.node.label)
-            project_name = str(event.node.parent.label)
+        if event.node.data and event.node.data["type"] == "job":
+            job_name = event.node.data["job_name"]
+            project_name = event.node.data["project_name"]
 
             # Use the dedicated check instead of relying on start_log side effects.
             if operations.is_any_job_running():
@@ -799,10 +843,11 @@ class WtlApp(App):
         if (
             self.focused == self.projects_tree
             and self.projects_tree.cursor_node
-            and not self.projects_tree.cursor_node.allow_expand
+            and self.projects_tree.cursor_node.data
+            and self.projects_tree.cursor_node.data["type"] == "job"
         ):
-            job_name = str(self.projects_tree.cursor_node.label)
-            project_name = str(self.projects_tree.cursor_node.parent.label)
+            job_name = self.projects_tree.cursor_node.data["job_name"]
+            project_name = self.projects_tree.cursor_node.data["project_name"]
 
             self.start_timer_for_selection((project_name, job_name))
             return
@@ -909,11 +954,7 @@ class WtlApp(App):
                     profile_path, output_path, target_date=target_date
                 )
                 if count > 0:
-                    label = target_date if target_date else "all dates"
-                    self.notify(
-                        f"Successfully exported {count} grouped rows to "
-                        f"{output_path} ({label})"
-                    )
+                    pass
                 else:
                     self.notify("No logs matched or exported.", severity="warning")
             except Exception as e:
@@ -959,12 +1000,14 @@ class WtlApp(App):
             self.filter_date_start = res["start"]
             self.filter_date_end = res["end"]
             self.refresh_data()
-            if any(res.values()):
-                self.notify("Filters applied.")
-            else:
-                self.notify("Filters cleared.")
 
         self.push_screen(FilterModal(current), handle_filter)
+
+
+    def action_toggle_show_archived(self) -> None:
+        """Toggle the visibility of archived projects in the tree."""
+        self.show_archived = not self.show_archived
+        self.refresh_data()
 
 
 if __name__ == "__main__":

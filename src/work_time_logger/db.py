@@ -30,10 +30,17 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
+                name TEXT UNIQUE NOT NULL,
+                is_archived INTEGER DEFAULT 0
             )
         """
         )
+
+        # Migration: Add is_archived column if it doesn't exist
+        try:
+            cursor.execute("SELECT is_archived FROM projects LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE projects ADD COLUMN is_archived INTEGER DEFAULT 0")
 
         # Jobs Table
         cursor.execute(
