@@ -249,6 +249,34 @@ def delete_job(job_id: int):
         conn.commit()
 
 
+def set_job_favorite(project_name: str, job_name: str, is_favorite: bool):
+    """Set the favorite status of a job.
+
+    Args:
+        project_name (str): The name of the project.
+        job_name (str): The name of the job.
+        is_favorite (bool): The new favorite status.
+
+    Raises:
+        ValueError: If the job is not found.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET is_favorite = ?
+            WHERE name = ? AND project_id = (
+                SELECT id FROM projects WHERE name = ?
+            )
+            """,
+            (1 if is_favorite else 0, job_name, project_name),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError(f"Job '{job_name}' in project '{project_name}' not found.")
+        conn.commit()
+
+
 def import_jobs_from_csv(
     filepath: str, project_name: str, profile_path: str = None
 ) -> int:

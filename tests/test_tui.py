@@ -161,7 +161,7 @@ async def test_tui_filtering():
         table = app.query_one(DataTable)
         assert table.row_count == 2
 
-        await pilot.press("f")
+        await pilot.press("F")
         await pilot.pause()
 
         from work_time_logger.modals import FilterModal
@@ -324,8 +324,8 @@ async def test_tui_misc_actions():
         await pilot.pause()
         await pilot.press("escape")
 
-        # action_filter (f)
-        await pilot.press("f")
+        # action_filter (F)
+        await pilot.press("F")
         await pilot.pause()
         await pilot.press("escape")
 

@@ -170,6 +170,16 @@
           "type": "boolean",
           "description": "Copy memo from the original log when restarting a job using the 'r' key.",
           "default": true
+        },
+        "favorite_mark": {
+          "type": "string",
+          "description": "Character or string used to mark favorite jobs in the TUI.",
+          "default": "🌟"
+        },
+        "favorite_style": {
+          "type": "string",
+          "description": "Rich style applied to the favorite mark (e.g., 'bold #FFD700').",
+          "default": ""
         }
       }
     }

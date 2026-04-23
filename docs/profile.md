@@ -107,14 +107,6 @@ note_separator = " / "
 
 TUIの挙動をカスタマイズします。
 
-- `duration_step`: TUIの編集オーバーレイで、時刻の微調整キー（`↑`/`↓`）を押した際の増減幅（時間単位）。
-- `copy_memo_on_restart`: 履歴からジョブを再開（`r` キー）した際、元のログの備考をコピーするかどうか。
-
-```toml
-[tui]
-duration_step = 0.1
-copy_memo_on_restart = true
-```
 
 ---
 

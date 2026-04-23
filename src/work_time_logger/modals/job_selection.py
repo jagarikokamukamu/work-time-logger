@@ -57,8 +57,8 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
         self.jobs = []
         self.modal_title = title
         for p in operations.list_projects():
-            for j in operations.list_jobs(p["name"]):
-                self.jobs.append((p["name"], j["name"]))
+            for j in operations.list_jobs(p["name"], include_archived=True):
+                self.jobs.append((p["name"], j["name"], j["is_favorite"]))
 
     def compose(self) -> ComposeResult:
         """Compose the child widgets for the modal."""
@@ -83,14 +83,27 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
         option_list = self.query_one(OptionList)
         option_list.clear_options()
         term = search_term.lower()
-        for i, (p_name, j_name) in enumerate(self.jobs):
+
+        # Get settings from app for marking
+        fav_mark = getattr(self.app, "favorite_mark", "⭐")
+
+        # Sort: Favorites first, then by project/job name
+        sorted_jobs = sorted(
+            self.jobs,
+            key=lambda x: (not x[2], x[0], x[1])  # x[2] is is_favorite
+        )
+
+        for i, (p_name, j_name, is_fav) in enumerate(sorted_jobs):
             label = f"{j_name} ({p_name})"
+            if is_fav:
+                label = f"{fav_mark} {label}"
+            
             if term in label.lower():
-                option_list.add_option(Option(prompt=label, id=str(i)))
+                # Use a string id to store both p_name and j_name
+                option_list.add_option(Option(prompt=label, id=f"{p_name}|{j_name}"))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle selection of a job from the option list."""
         if event.option_id is not None:
-            idx = int(event.option_id)
-            selected_project, selected_job = self.jobs[idx]
-            self.dismiss((selected_project, selected_job))
+            p_name, j_name = event.option_id.split("|")
+            self.dismiss((p_name, j_name))

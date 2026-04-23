@@ -58,7 +58,25 @@ class ProjectsTree(Tree):
         Binding("a", "add_job_log", "Add Log", show=True),
         Binding("c", "show_job_code", "Show Job Code", show=True),
         Binding("z", "toggle_archive", "Archive/Unarchive", show=True),
+        Binding("f", "toggle_favorite", "Favorite", show=True),
     ]
+
+    def action_toggle_favorite(self) -> None:
+        """Toggles the favorite status of the selected job."""
+        node = self.cursor_node
+        if node and node.data and node.data["type"] == "job":
+            job_name = node.data["job_name"]
+            project_name = node.data["project_name"]
+            try:
+                # We need to know current status. Let's find it from list_jobs.
+                jobs = operations.list_jobs(project_name, include_archived=True)
+                job = next((j for j in jobs if j["name"] == job_name), None)
+                if job:
+                    new_status = not job["is_favorite"]
+                    operations.set_job_favorite(project_name, job_name, new_status)
+                    self.app.refresh_data()
+            except Exception as e:
+                self.app.notify(f"Error: {e}", severity="error")
 
     def action_toggle_archive(self) -> None:
         """Toggles the archival status of the selected project."""
@@ -67,12 +85,12 @@ class ProjectsTree(Tree):
             # If leaf, get parent (project)
             if node.data["type"] == "job":
                 node = node.parent
-            
+
             if not node or not node.data or node.data["type"] != "project":
                 return
 
             project_name = node.data["project_name"]
-            
+
             try:
                 p = operations.get_project(project_name)
                 if p:
@@ -161,7 +179,7 @@ class WtlApp(App):
         Binding("tab", "switch_focus", "Focus", show=True),
         Binding("s", "start_job", "Start", show=True),
         Binding("x", "stop_job", "Stop", show=True),
-        Binding("f", "show_filter", "Filter", show=True),
+        Binding("F", "show_filter", "Filter", show=True),
         Binding("d", "show_dashboard", "Dashboard", show=True),
         Binding("v", "show_summary", "Daily Summary", show=True),
         Binding("e", "export_logs", "Export Logs", show=True),
@@ -187,6 +205,10 @@ class WtlApp(App):
         self.filter_date_end = None
         self.show_archived = False
 
+        # Default favorite appearance
+        self.favorite_mark = "🌟"
+        self.favorite_style = ""
+
         # Load duration step from profile
         self.duration_step = 0.1
         self.copy_memo_on_restart = True
@@ -199,7 +221,11 @@ class WtlApp(App):
                     config = tomllib.load(f)
                     tui_cfg = config.get("tui", {})
                     self.duration_step = tui_cfg.get("duration_step", 0.1)
-                    self.copy_memo_on_restart = tui_cfg.get("copy_memo_on_restart", True)
+                    self.copy_memo_on_restart = tui_cfg.get(
+                        "copy_memo_on_restart", True
+                    )
+                    self.favorite_mark = tui_cfg.get("favorite_mark", "🌟")
+                    self.favorite_style = tui_cfg.get("favorite_style", "")
         except (OSError, tomllib.TOMLDecodeError):
             # Profile is optional; if missing or broken, TUI will use defaults.
             pass
@@ -274,30 +300,66 @@ class WtlApp(App):
         # Populate Projects and Jobs tree
         self.projects_tree.clear()
         projects = operations.list_projects(include_archived=self.show_archived)
+
+        # Collect and display Favorites (Pinned)
+        favorites = []
+        for p in projects:
+            p_jobs = operations.list_jobs(p["name"], include_archived=True)
+            for j in p_jobs:
+                if j["is_favorite"]:
+                    favorites.append(j)
+
+        if favorites:
+            pinned_node = self.projects_tree.root.add(
+                "Pinned", expand=True, data={"type": "pinned_root"}
+            )
+            for j in favorites:
+                # Inside Pinned section, we use a simple label to avoid too much distraction
+                label = f"{j['name']} ({j['project_name']})"
+                pinned_node.add_leaf(
+                    label,
+                    data={
+                        "type": "job",
+                        "job_name": j["name"],
+                        "project_name": j["project_name"],
+                    },
+                )
+
         for p in projects:
             p_name = p["name"]
             is_archived = p["is_archived"]
-            
+
             if is_archived:
                 label = Text(f"[A] {p_name}", style="italic dim")
             else:
                 label = p_name
-                
+
             should_expand = is_initial_load or (p_name in expanded_projects)
-            
+
             p_node = self.projects_tree.root.add(
                 label,
                 expand=should_expand,
-                data={"type": "project", "project_name": p_name, "is_archived": is_archived}
+                data={
+                    "type": "project",
+                    "project_name": p_name,
+                    "is_archived": is_archived,
+                },
             )
-            
+
             jobs = operations.list_jobs(p_name, include_archived=True)
             for j in jobs:
                 j_name = j["name"]
-                j_label = Text(j_name, style="dim") if is_archived else j_name
+                is_fav = j["is_favorite"]
+
+                j_label = Text(j_name, style="dim") if is_archived else Text(j_name)
+                if is_fav:
+                    fav_prefix = Text(self.favorite_mark, style=self.favorite_style)
+                    fav_prefix.append(" ")
+                    j_label = fav_prefix + j_label
+
                 p_node.add_leaf(
                     j_label,
-                    data={"type": "job", "job_name": j_name, "project_name": p_name}
+                    data={"type": "job", "job_name": j_name, "project_name": p_name},
                 )
 
         # Populate Logs table
@@ -1002,7 +1064,6 @@ class WtlApp(App):
             self.refresh_data()
 
         self.push_screen(FilterModal(current), handle_filter)
-
 
     def action_toggle_show_archived(self) -> None:
         """Toggle the visibility of archived projects in the tree."""

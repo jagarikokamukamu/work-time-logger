@@ -51,6 +51,7 @@ def init_db():
                 name TEXT NOT NULL,
                 description TEXT,
                 code TEXT,
+                is_favorite INTEGER DEFAULT 0,
                 UNIQUE(project_id, name),
                 FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
             )
@@ -62,6 +63,12 @@ def init_db():
             cursor.execute("SELECT code FROM jobs LIMIT 1")
         except sqlite3.OperationalError:
             cursor.execute("ALTER TABLE jobs ADD COLUMN code TEXT")
+
+        # Migration: Add is_favorite column if it doesn't exist
+        try:
+            cursor.execute("SELECT is_favorite FROM jobs LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN is_favorite INTEGER DEFAULT 0")
 
         # Logs Table
         cursor.execute(

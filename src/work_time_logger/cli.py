@@ -183,6 +183,42 @@ def list_projects(
     console.print(table)
 
 
+@job_app.command("favorite")
+def favorite_job(
+    name: str = typer.Option(..., "--job", "-j", help="Name of the job."),
+    project_name: str = typer.Option(
+        ..., "--project", "-p", help="Name of the project.",
+        autocompletion=complete_project_name
+    ),
+):
+    """Mark a job as favorite.
+
+    Favorited jobs appear at the top of the selection tree and search results.
+    """
+    try:
+        operations.set_job_favorite(project_name, name, True)
+        console.print(f"[green]Job '{name}' in project '{project_name}' marked as favorite.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@job_app.command("unfavorite")
+def unfavorite_job(
+    name: str = typer.Option(..., "--job", "-j", help="Name of the job."),
+    project_name: str = typer.Option(
+        ..., "--project", "-p", help="Name of the project.",
+        autocompletion=complete_project_name
+    ),
+):
+    """Remove a job from favorites.
+    """
+    try:
+        operations.set_job_favorite(project_name, name, False)
+        console.print(f"[green]Job '{name}' in project '{project_name}' removed from favorites.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 @project_app.command("archive")
 def archive_project(
     name: str = typer.Option(
@@ -338,9 +374,10 @@ def list_jobs(
         except Exception as e:
             console.print(f"[red]Error expanding job codes: {e}[/red]")
     else:
-        table = Table("ID", "Job Name", "Project")
+        table = Table("ID", "Job Name", "Project", "Favorite")
         for j in jobs:
-            table.add_row(Text(str(j["id"])), Text(j["name"]), Text(j["project_name"]))
+            fav = "[yellow]⭐[/yellow]" if j["is_favorite"] else ""
+            table.add_row(Text(str(j["id"])), Text(j["name"]), Text(j["project_name"]), fav)
         console.print(table)
 
 
