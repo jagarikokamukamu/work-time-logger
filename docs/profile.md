@@ -12,6 +12,7 @@
 - `[export]`: 変数をもとに作業記録をどうグループ化・合算し、どうフォーマットするかを設定します。
 - `[export.format]`: 備考の書式を設定します。
 - `[export.columns]`: 最終的に出力するCSVのカラム（ヘッダーと中身）を設定します。
+- `[tui]`: TUI（ターミナルUI）固有の動作設定を行います。
 
 ---
 
@@ -62,6 +63,9 @@ group_by = ["type", "ticket"]
 # 合計時間の精度と丸め方: "round" | "floor" | "ceil"
 time_precision = 2
 time_rounding  = "round"
+# 集計方法: "sum_then_round" | "round_then_sum" | "round_subtotal_then_sum"
+# "round_subtotal_then_sum" は各詳細項目の小計を丸めてから合計します。
+time_aggregation_method = "sum_then_round"
 ```
 
 ---
@@ -96,6 +100,21 @@ note_separator = " / "
 
 > [!NOTE]
 > `export.columns` では、`aggregated_time` と `aggregated_notes` に加え、グループ化の基準となった変数（`type` や `ticket` など）も使用できます。これらはグループ内の最初のログエントリから取得されます。
+
+---
+
+### tui
+
+TUIの挙動をカスタマイズします。
+
+- `duration_step`: TUIの編集オーバーレイで、時刻の微調整キー（`↑`/`↓`）を押した際の増減幅（時間単位）。
+- `copy_memo_on_restart`: 履歴からジョブを再開（`r` キー）した際、元のログの備考をコピーするかどうか。
+
+```toml
+[tui]
+duration_step = 0.1
+copy_memo_on_restart = true
+```
 
 ---
 
