@@ -748,18 +748,46 @@ class WtlApp(App):
                     if current_log["end_time"]:
                         et = datetime.fromisoformat(current_log["end_time"])
                         if et < st:
-                            self.notify(
-                                "Start time cannot be after end time.", severity="error"
+
+                            def check_adjust_end(confirm: bool) -> None:
+                                if confirm:
+                                    self._commit_log_update(
+                                        current_log, start_time=val, end_time=val
+                                    )
+
+                            self.push_screen(
+                                ConfirmActionModal(
+                                    "Time Validation",
+                                    "Start time is after end time. Adjust end time to match?",
+                                    yes_label="Adjust (y)",
+                                    no_label="Cancel (c)",
+                                ),
+                                check_adjust_end,
                             )
+                            self._hide_edit_overlay()
                             return
                 elif self._editing_col_index == LogColumn.END_TIME:
                     et = datetime.fromisoformat(val)
                     st = datetime.fromisoformat(current_log["start_time"])
                     if et < st:
-                        self.notify(
-                            "End time cannot be before start time.", severity="error"
-                        )
-                        return
+
+                            def check_adjust_start(confirm: bool) -> None:
+                                if confirm:
+                                    self._commit_log_update(
+                                        current_log, start_time=val, end_time=val
+                                    )
+
+                            self.push_screen(
+                                ConfirmActionModal(
+                                    "Time Validation",
+                                    "End time is before start time. Adjust start time to match?",
+                                    yes_label="Adjust (y)",
+                                    no_label="Cancel (c)",
+                                ),
+                                check_adjust_start,
+                            )
+                            self._hide_edit_overlay()
+                            return
             except (ValueError, TypeError):
                 # Invalid date formats or mixed types; validation handled by callers.
                 pass
@@ -810,6 +838,11 @@ class WtlApp(App):
             # Memo
             self._update_memo(self._editing_log_entry, val)
 
+        self._hide_edit_overlay()
+
+    def _hide_edit_overlay(self) -> None:
+        """Hides the edit overlay and returns focus to the logs table."""
+        inp = self.query_one("#edit-overlay", OverlayInput)
         inp.can_focus = False
         inp.styles.display = "none"
         self.logs_table.focus()
