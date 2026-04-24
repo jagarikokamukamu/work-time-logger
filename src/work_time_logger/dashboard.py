@@ -154,7 +154,7 @@ class DashboardScreen(Screen):
         project_totals = {}
         total_period_hours = 0.0
         for log in period_logs:
-            p = log["project_name"] or "[未割り当て]"
+            p = log["project_name"] or "[Unassigned]"
             h = log["duration_hours"]
             if h is None and log["end_time"]:
                 s = datetime.fromisoformat(log["start_time"])

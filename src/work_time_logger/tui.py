@@ -184,7 +184,7 @@ class WtlApp(App):
         Binding("v", "show_summary", "Daily Summary", show=True),
         Binding("e", "export_logs", "Export Logs", show=True),
         Binding("h", "show_help", "Help", show=True),
-        # 隠しコマンド
+        # Hidden commands
         Binding("q", "quit", "Quit", show=False),
         Binding("f1", "show_help", "Help", show=False),
         Binding("S", "start_unassigned", "Start Unassigned Timer", show=False),
@@ -384,8 +384,8 @@ class WtlApp(App):
             filtered.append(log)
         self.logs = filtered
         for log_entry in self.logs:
-            p_name = log_entry["project_name"] or "[未割り当て]"
-            j_name = log_entry["job_name"] or "[未割り当て]"
+            p_name = log_entry["project_name"] or "[Unassigned]"
+            j_name = log_entry["job_name"] or "[Unassigned]"
 
             start_iso = log_entry["start_time"]
             end_iso = log_entry["end_time"]
@@ -831,7 +831,7 @@ class WtlApp(App):
             try:
                 duration = float(val) if val else None
             except ValueError:
-                self.notify("数値を入力してください (例: 2.5)", severity="error")
+                self.notify("Please enter a number (e.g. 2.5)", severity="error")
                 return
             self._commit_log_update(self._editing_log_entry, duration_hours=duration)
         elif self._editing_col_index == LogColumn.MEMO:

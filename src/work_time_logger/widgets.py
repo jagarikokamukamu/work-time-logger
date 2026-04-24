@@ -15,8 +15,8 @@ class CopyableDataTable(DataTable):
     """A DataTable that supports copying the selected row or cell to the clipboard."""
 
     BINDINGS = [
-        Binding("c", "copy_to_clipboard", "コピー", show=True),
-        Binding("enter", "select_cursor", "編集", show=True),
+        Binding("c", "copy_to_clipboard", "Copy", show=True),
+        Binding("enter", "select_cursor", "Edit", show=True),
     ]
 
     def action_copy_to_clipboard(self) -> None:
@@ -40,7 +40,7 @@ class CopyableDataTable(DataTable):
 
             self.app.copy_to_clipboard(text)
         except Exception as e:
-            self.app.notify(f"コピーに失敗しました: {e}", severity="error")
+            self.app.notify(f"Copy failed: {e}", severity="error")
 
 
 class OverlayInput(Input):

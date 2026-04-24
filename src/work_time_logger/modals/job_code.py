@@ -183,7 +183,7 @@ class JobCodeModal(BaseModal):
         # Protection: Cannot edit variables that are part of the Job Name
         if row_key in self.name_vars:
             self.app.notify(
-                "Job名は直接編集できません (プロジェクト設定に依存します)",
+                "Job names cannot be edited directly (depends on project settings)",
                 severity="warning"
             )
             return

@@ -67,8 +67,8 @@ async def test_tui_add_empty_log():
         table = app.query_one(DataTable)
         assert table.row_count == 1
         row = table.get_row_at(0)
-        assert str(row[1]) == "[未割り当て]"
-        assert str(row[2]) == "[未割り当て]"
+        assert str(row[1]) == "[Unassigned]"
+        assert str(row[2]) == "[Unassigned]"
 
 
 @pytest.mark.asyncio
