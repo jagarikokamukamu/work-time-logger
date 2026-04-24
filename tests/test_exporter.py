@@ -560,3 +560,67 @@ time_aggregation_method = "{method}"
 
     assert run_export_diff("sum_then_round") == 2.1
     assert run_export_diff("round_subtotal_then_sum") == 2.0
+
+
+def test_floor_rounding_precision_bug(tmp_path: Path):
+    """Test that floor rounding with float accumulation doesn't cause a precision drop
+
+    (e.g., 4.0 + 0.3 + 0.3 + 0.3 = 4.8999999999999995 should floor to 4.9, not 4.8)
+    """
+    operations.add_project("BugProject")
+    # job_code extracts: Proj, Detail, Burden, Work
+    operations.add_job("JobA", "BugProject", code="0000_1000_XXX_ProjMgmt")
+    operations.add_job("JobB", "BugProject", code="0000_1000_XXX_ProjMgmt")
+    operations.add_job("JobC", "BugProject", code="0000_1000_XXX_DetailDesign")
+
+    # A: 4 hours (16:00 - 20:00)
+    lid_a1 = operations.create_empty_log()
+    operations.update_log(
+        lid_a1, "BugProject", "JobA", "2026-06-16T16:00:00", "2026-06-16T20:00:00"
+    )
+
+    # ABC: 1 hour overlap (20:00 - 21:00) -> 1/3 hours each
+    lid_a2 = operations.create_empty_log()
+    operations.update_log(
+        lid_a2, "BugProject", "JobA", "2026-06-16T20:00:00", "2026-06-16T21:00:00"
+    )
+    lid_b = operations.create_empty_log()
+    operations.update_log(
+        lid_b, "BugProject", "JobB", "2026-06-16T20:00:00", "2026-06-16T21:00:00"
+    )
+    lid_c = operations.create_empty_log()
+    operations.update_log(
+        lid_c, "BugProject", "JobC", "2026-06-16T20:00:00", "2026-06-16T21:00:00"
+    )
+
+    profile_path = tmp_path / "profile_bug.toml"
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write("""
+[export.extract]
+job_code = "^(?P<construction_no>[^_]*)_(?P<detail_no>[^_]*)_(?P<burden>[^_]*)_(?P<work_content>[^_]*)$"
+
+[export]
+group_by = ["construction_no", "detail_no", "burden", "work_content"]
+time_precision = 1
+time_rounding = "floor"
+time_aggregation_method = "round_subtotal_then_sum"
+
+[export.columns]
+"time" = "{{ aggregated_time }}"
+""")
+
+    out = tmp_path / "out_bug.csv"
+    exporter.export_logs(str(profile_path), str(out), target_date="2026-06-16")
+    with open(out, encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    # There should be two rows:
+    # 1. ProjMgmt: A(4.0) + A(0.3) + B(0.3) = 4.6
+    # 2. DetailDesign: C(0.3)
+    # Total sum of these sub-group columns in DailySummary: 4.6 + 0.3 = 4.9.
+    # Note that the subtotal_sum_for_agg within ProjMgmt: A(4.0 + 0.3) + B(0.3) = 4.3 + 0.3 = 4.6.
+    # With floating point error, 4.3 + 0.3 could be 4.5999999999999996, which floors to 4.5.
+    # We assert it properly yields 4.6.
+    proj_mgmt_row = next(r for r in rows if r["time"] != "0.3")
+    assert float(proj_mgmt_row["time"]) == 4.6

@@ -48,6 +48,9 @@ def _apply_rounding(value: float, precision: int, method: str) -> float:
     Returns:
         float: The rounded value.
     """
+    # Fix floating-point precision issues (e.g. 4.8999999999999995)
+    # by pre-rounding to a high precision before applying the rounding method.
+    value = round(value, 12)
     factor = 10**precision
     if method == "floor":
         return math.floor(value * factor) / factor
