@@ -790,3 +790,75 @@ def update_job(
             (final_description, final_code, existing["id"]),
         )
         conn.commit()
+
+
+def duplicate_log(
+    log_id: int,
+    project_name: str | None = None,
+    job_name: str | None = None,
+) -> int:
+    """Duplicate an existing log entry.
+
+    Duplicates with the same start_time, end_time, memo, and duration_hours,
+    but optionally changes the project and job. If project_name/job_name are None,
+    the new log is Unassigned.
+
+    Args:
+        log_id (int): The ID of the log entry to duplicate.
+        project_name (str | None, optional): The target project name. Defaults to None.
+        job_name (str | None, optional): The target job name. Defaults to None.
+
+    Returns:
+        int: The ID of the newly created log entry.
+
+    Raises:
+        ValueError: If the log ID is not found, or if project/job names are not found/invalid.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 1. Fetch original log details
+        cursor.execute(
+            "SELECT start_time, end_time, memo, duration_hours FROM logs WHERE id = ?",
+            (log_id,),
+        )
+        orig = cursor.fetchone()
+        if not orig:
+            raise ValueError(f"Log ID {log_id} not found.")
+
+        p_id = None
+        j_id = None
+
+        # 2. Find project and job IDs if provided
+        if project_name and job_name:
+            cursor.execute("SELECT id FROM projects WHERE name = ?", (project_name,))
+            p_res = cursor.fetchone()
+            if not p_res:
+                raise ValueError(f"Project '{project_name}' not found.")
+            p_id = p_res["id"]
+
+            cursor.execute(
+                "SELECT id FROM jobs WHERE name = ? AND project_id = ?",
+                (job_name, p_id),
+            )
+            j_res = cursor.fetchone()
+            if not j_res:
+                raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
+            j_id = j_res["id"]
+
+        # 3. Insert new duplicated log
+        cursor.execute(
+            "INSERT INTO logs (project_id, job_id, start_time, end_time, memo, "
+            "duration_hours) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                p_id,
+                j_id,
+                orig["start_time"],
+                orig["end_time"],
+                orig["memo"],
+                orig["duration_hours"],
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
