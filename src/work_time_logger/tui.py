@@ -142,7 +142,10 @@ class LogsTable(DataTable):
         Binding("enter", "select_cursor", "Edit", show=True),
         Binding("D", "app.delete_log", "Delete", show=True),
         Binding("r", "app.restart_job", "Restart", show=True),
+        Binding("p", "app.parallel_clone_assigned", "Parallel Clone (Job)", show=True),
+        Binding("P", "app.parallel_clone_unassigned", "Parallel Clone (Unassigned)", show=True),
     ]
+
 
 
 class WtlApp(App):
@@ -847,30 +850,32 @@ class WtlApp(App):
         inp.styles.display = "none"
         self.logs_table.focus()
 
+    def _get_selected_log_entry(self) -> dict | None:
+        """Helper to get the log entry currently highlighted in the logs table."""
+        if self.focused != self.logs_table:
+            return None
+        coord = self.logs_table.cursor_coordinate
+        if not coord:
+            return None
+        try:
+            cell_key = self.logs_table.coordinate_to_cell_key(coord)
+        except (ValueError, KeyError, IndexError):
+            return None
+        if not cell_key or not cell_key.row_key or not cell_key.row_key.value:
+            return None
+        try:
+            log_id = int(str(cell_key.row_key.value))
+        except (ValueError, TypeError):
+            return None
+        return next((entry for entry in self.logs if entry["id"] == log_id), None)
+
     def action_restart_job(self) -> None:
         """Action to restart the job associated with the selected log entry.
 
         This clones the project and job from the currently highlighted row
         in the LogsTable and starts a new timer for it.
         """
-        if self.focused != self.logs_table:
-            return
-        coord = self.logs_table.cursor_coordinate
-        if not coord:
-            return
-        try:
-            cell_key = self.logs_table.coordinate_to_cell_key(coord)
-        except (ValueError, KeyError, IndexError):
-            return
-        if not cell_key or not cell_key.row_key or not cell_key.row_key.value:
-            return
-
-        try:
-            log_id = int(str(cell_key.row_key.value))
-        except (ValueError, TypeError):
-            return
-
-        log_entry = next((entry for entry in self.logs if entry["id"] == log_id), None)
+        log_entry = self._get_selected_log_entry()
         if not log_entry:
             return
 
@@ -879,6 +884,38 @@ class WtlApp(App):
         memo = log_entry["memo"] if self.copy_memo_on_restart else ""
 
         self._start_log_with_config(project_name, job_name, memo)
+
+    def action_parallel_clone_unassigned(self) -> None:
+        """Clones the selected log entry in parallel as an Unassigned log."""
+        log_entry = self._get_selected_log_entry()
+        if not log_entry:
+            return
+
+        try:
+            operations.duplicate_log(log_entry["id"], None, None)
+            self.refresh_data()
+            self.notify("Parallel Unassigned log created.")
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
+
+    def action_parallel_clone_assigned(self) -> None:
+        """Clones the selected log entry in parallel to a selected job."""
+        log_entry = self._get_selected_log_entry()
+        if not log_entry:
+            return
+
+        def cb(result: tuple[str, str] | None) -> None:
+            if result is None:
+                return
+            p_name, j_name = result
+            try:
+                operations.duplicate_log(log_entry["id"], p_name, j_name)
+                self.refresh_data()
+                self.notify(f"Parallel log created for {j_name} ({p_name}).")
+            except Exception as e:
+                self.notify(f"Error: {e}", severity="error")
+
+        self.push_screen(JobSelectionModal(title="Select Parallel Job"), cb)
 
     def _start_log_with_config(
         self, project_name: str | None, job_name: str | None, memo: str = ""
