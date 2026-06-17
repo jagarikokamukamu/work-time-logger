@@ -395,6 +395,7 @@ def start_log(
     Args:
         project_name (str, optional): The name of the project. Defaults to None.
         job_name (str, optional): The name of the job. Defaults to None.
+        memo (str, optional): A memo/description for the log entry. Defaults to "".
         force_parallel (bool, optional): If True, allows starting a new job even if
             another job is already running. Defaults to False.
 
