@@ -8,3 +8,14 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Settings
+.vscode/
+
+# Test outputs and logs
+.coverage
+.wtl_test/
+wtl_error.log
+*.csv
+sample_*.md
+sample_*.toml
