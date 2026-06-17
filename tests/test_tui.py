@@ -458,3 +458,64 @@ async def test_tui_restart_job():
         assert str(new_row[1]) == "RestartProj"
         assert str(new_row[2]) == "RestartJob"
         assert "Running..." in str(new_row[5])  # End Time column
+
+
+@pytest.mark.asyncio
+async def test_tui_parallel_clone():
+    """Test parallel cloning via 'p' (assigned) and 'P' (unassigned)."""
+    operations.add_project("CloneProj")
+    operations.add_job("CloneJobA", "CloneProj")
+    operations.add_job("CloneJobB", "CloneProj")
+    operations.start_log("CloneProj", "CloneJobA")
+    operations.stop_all_logs()
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        app.set_focus(table)
+        table.move_cursor(row=0, column=0)
+
+        # 1. Test P (unassigned parallel clone)
+        await pilot.press("P")
+        await pilot.pause(0.1)
+
+        # Now there should be 2 rows (original CloneJobA, and new Unassigned duplicate)
+        assert table.row_count == 2
+        # The new one will have higher ID and same start_time.
+        # Order by start_time DESC, id DESC, so new one (higher ID) is at top.
+        new_row = table.get_row_at(0)
+        assert str(new_row[1]) == "[Unassigned]"
+        assert str(new_row[2]) == "[Unassigned]"
+
+        # Move cursor to original log (which is row 1 now)
+        table.move_cursor(row=1, column=0)
+
+        # 2. Test p (assigned parallel clone)
+        await pilot.press("p")
+        await pilot.pause(0.1)
+        
+        from work_time_logger.modals import JobSelectionModal
+        assert isinstance(app.screen, JobSelectionModal)
+        
+        # Type the target job name to filter the option list
+        for char in "CloneJobB":
+            await pilot.press(char)
+        await pilot.pause(0.1)
+        
+        # Focus the OptionList and select the filtered job
+        from textual.widgets import OptionList
+        job_list = app.screen.query_one(OptionList)
+        app.set_focus(job_list)
+        await pilot.press("down")
+        await pilot.pause(0.1)
+        await pilot.press("enter")
+        await pilot.pause(0.1)
+
+        # Screen should return to main
+        assert not isinstance(app.screen, JobSelectionModal)
+
+        # There should be 3 rows now
+        assert table.row_count == 3
+        proj_jobs = [(str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2])) for i in range(3)]
+        assert ("CloneProj", "CloneJobB") in proj_jobs
+

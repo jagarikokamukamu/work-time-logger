@@ -304,3 +304,56 @@ def test_project_archive(setup_test_db):
     operations.set_project_archived("Target Proj", False)
     projects = operations.list_projects()
     assert len(projects) == 2
+
+
+def test_duplicate_log():
+    # Setup project and jobs
+    operations.add_project("Proj")
+    operations.add_job("JobA", "Proj")
+    operations.add_job("JobB", "Proj")
+
+    # Start a log for JobA, add memo, stop it
+    log_id = operations.start_log("Proj", "JobA", memo="Meeting")
+    operations.stop_log(log_id)
+
+    # Fetch original to get start/end time
+    logs = operations.list_logs()
+    orig = logs[0]
+
+    # Duplicate to JobB
+    dup_id = operations.duplicate_log(log_id, "Proj", "JobB")
+    
+    logs_after = operations.list_logs()
+    assert len(logs_after) == 2
+
+    # Check duplicated entry values
+    dup_entry = next(l for l in logs_after if l["id"] == dup_id)
+    assert dup_entry["project_name"] == "Proj"
+    assert dup_entry["job_name"] == "JobB"
+    assert dup_entry["start_time"] == orig["start_time"]
+    assert dup_entry["end_time"] == orig["end_time"]
+    assert dup_entry["memo"] == "Meeting"
+    assert dup_entry["duration_hours"] == orig["duration_hours"]
+
+    # Duplicate to Unassigned
+    dup_unassigned_id = operations.duplicate_log(log_id, None, None)
+    logs_after_unassigned = operations.list_logs()
+    assert len(logs_after_unassigned) == 3
+
+    dup_unassigned_entry = next(l for l in logs_after_unassigned if l["id"] == dup_unassigned_id)
+    assert dup_unassigned_entry["project_name"] is None
+    assert dup_unassigned_entry["job_name"] is None
+    assert dup_unassigned_entry["start_time"] == orig["start_time"]
+    assert dup_unassigned_entry["end_time"] == orig["end_time"]
+    assert dup_unassigned_entry["memo"] == "Meeting"
+
+    # Test error cases
+    with pytest.raises(ValueError, match="Log ID 999 not found"):
+        operations.duplicate_log(999, "Proj", "JobB")
+
+    with pytest.raises(ValueError, match="Project 'InvalidProj' not found"):
+        operations.duplicate_log(log_id, "InvalidProj", "JobB")
+
+    with pytest.raises(ValueError, match="Job 'InvalidJob' not found"):
+        operations.duplicate_log(log_id, "Proj", "InvalidJob")
+
