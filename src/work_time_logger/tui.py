@@ -902,7 +902,6 @@ class WtlApp(App):
         try:
             operations.duplicate_log(log_entry["id"], None, None)
             self.refresh_data()
-            self.notify("Parallel Unassigned log created.")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
@@ -919,7 +918,6 @@ class WtlApp(App):
             try:
                 operations.duplicate_log(log_entry["id"], p_name, j_name)
                 self.refresh_data()
-                self.notify(f"Parallel log created for {j_name} ({p_name}).")
             except Exception as e:
                 self.notify(f"Error: {e}", severity="error")
 
