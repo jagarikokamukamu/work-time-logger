@@ -8,6 +8,7 @@ from textual.widgets import DataTable, Tree
 
 from work_time_logger import db, operations
 from work_time_logger.tui import WtlApp
+from work_time_logger.widgets import OverlayInput
 
 
 @pytest.fixture(autouse=True)
@@ -91,7 +92,7 @@ async def test_tui_edit_log_cell():
         await pilot.press("enter")
         await pilot.pause(0.1)
 
-        overlay = app.query_one("#edit-overlay")
+        overlay = app.query_one("#edit-overlay", OverlayInput)
         assert overlay.styles.display == "block"
         assert app.focused == overlay
 
@@ -215,7 +216,7 @@ async def test_tui_arrow_key_adjustment():
         table.move_cursor(row=0, column=3)
         await pilot.press("enter")
         await pilot.pause(0.1)
-        overlay = app.query_one("#edit-overlay")
+        overlay = app.query_one("#edit-overlay", OverlayInput)
         assert overlay.edit_mode == "date_only"
         old_val = overlay.value
         await pilot.press("up")
@@ -493,15 +494,15 @@ async def test_tui_parallel_clone():
         # 2. Test p (assigned parallel clone)
         await pilot.press("p")
         await pilot.pause(0.1)
-        
+
         from work_time_logger.modals import JobSelectionModal
         assert isinstance(app.screen, JobSelectionModal)
-        
+
         # Type the target job name to filter the option list
         for char in "CloneJobB":
             await pilot.press(char)
         await pilot.pause(0.1)
-        
+
         # Focus the OptionList and select the filtered job
         from textual.widgets import OptionList
         job_list = app.screen.query_one(OptionList)
@@ -516,6 +517,9 @@ async def test_tui_parallel_clone():
 
         # There should be 3 rows now
         assert table.row_count == 3
-        proj_jobs = [(str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2])) for i in range(3)]
+        proj_jobs = [
+            (str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2]))
+            for i in range(3)
+        ]
         assert ("CloneProj", "CloneJobB") in proj_jobs
 

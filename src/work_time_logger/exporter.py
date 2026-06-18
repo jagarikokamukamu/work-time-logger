@@ -8,6 +8,7 @@ and Jinja2-based template rendering for notes and columns.
 import csv
 import math
 import os
+import typing
 import re
 import tomllib
 from datetime import datetime
@@ -82,7 +83,8 @@ group_by = ["type", "ticket"]
 # Aggregated time precision and rounding: "round", "floor", or "ceil"
 time_precision = 2
 time_rounding = "round"
-# Aggregation method: "sum_then_round" (default), "round_then_sum", or "round_subtotal_then_sum"
+# Aggregation method: "sum_then_round" (default), "round_then_sum",
+# or "round_subtotal_then_sum"
 time_aggregation_method = "sum_then_round"
 
 [export.format]
@@ -167,7 +169,7 @@ def extract_fields(
     return row_data
 
 
-def render_columns(columns_config: dict, context: dict) -> dict[str, str]:
+def render_columns(columns_config: dict, context: dict) -> dict[str, typing.Any]:
     """Render the final CSV columns using template configurations and context.
 
     Args:
@@ -323,7 +325,7 @@ def aggregate_logs(
 
     aggregated_results = []
 
-    for _, group_iter in groupby(extracted_data, key=group_key_func):
+    for group_key, group_iter in groupby(extracted_data, key=group_key_func):
         group_items = list(group_iter)
 
         if time_aggregation_method == "round_then_sum":
@@ -401,7 +403,9 @@ def aggregate_logs(
                     notes.append(rendered)
 
         if time_aggregation_method == "round_subtotal_then_sum":
-            agg_time = _apply_rounding(subtotal_sum_for_agg, time_precision, time_rounding)
+            agg_time = _apply_rounding(
+                subtotal_sum_for_agg, time_precision, time_rounding
+            )
 
         aggregated_notes = note_separator.join(notes)
 
@@ -427,7 +431,7 @@ def aggregate_logs(
         final_row = render_columns(columns_config, representative_item)
 
         # Preserve metadata for UI/internal use
-        final_row["_group_key"] = _
+        final_row["_group_key"] = group_key
         final_row["first_start"] = representative_item.get("first_start", "")
         final_row["last_end"] = representative_item.get("last_end", "")
         final_row["aggregated_time"] = representative_item.get("aggregated_time", 0)

@@ -81,7 +81,7 @@ def setup():
     init_db()
 
 
-def add_project(name: str):
+def add_project(name: str) -> int:
     """Add a new project to the database.
 
     Args:
@@ -94,6 +94,8 @@ def add_project(name: str):
         cursor = conn.cursor()
         cursor.execute("INSERT INTO projects (name) VALUES (?)", (name,))
         conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to add project")
         return cursor.lastrowid
 
 
@@ -164,7 +166,12 @@ def delete_project(project_id: int):
         conn.commit()
 
 
-def add_job(name: str, project_name: str, description: str = "", code: str = None):
+def add_job(
+    name: str,
+    project_name: str,
+    description: str = "",
+    code: str | None = None
+) -> int:
     """Add a new job under a specific project.
 
     Args:
@@ -193,10 +200,12 @@ def add_job(name: str, project_name: str, description: str = "", code: str = Non
             (project_id, name, description, code),
         )
         conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to add job")
         return cursor.lastrowid
 
 
-def list_jobs(project_name: str = None, include_archived: bool = False):
+def list_jobs(project_name: str | None = None, include_archived: bool = False):
     """List jobs, optionally filtering by project name and/or archival status.
 
     Args:
@@ -278,7 +287,7 @@ def set_job_favorite(project_name: str, job_name: str, is_favorite: bool):
 
 
 def import_jobs_from_csv(
-    filepath: str, project_name: str, profile_path: str = None
+    filepath: str, project_name: str, profile_path: str | None = None
 ) -> int:
     """Import jobs from a CSV file into a given project.
 
@@ -389,7 +398,7 @@ def start_log(
     job_name: str | None = None,
     memo: str = "",
     force_parallel: bool = False,
-):
+) -> int:
     """Start tracking a job, optionally leaving it unassigned.
 
     Args:
@@ -439,10 +448,13 @@ def start_log(
 
         now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute(
-            "INSERT INTO logs (project_id, job_id, start_time, memo) VALUES (?, ?, ?, ?)",
+            "INSERT INTO logs (project_id, job_id, start_time, memo) "
+            "VALUES (?, ?, ?, ?)",
             (p_id, j_id, now, memo),
         )
         conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to start log")
         return cursor.lastrowid
 
 
@@ -563,6 +575,8 @@ def create_empty_log() -> int:
             (now, now),
         )
         conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to create empty log")
         return cursor.lastrowid
 
 
@@ -577,12 +591,12 @@ MISSING = _MissingType()
 
 def update_log(
     log_id: int,
-    project_name: str | None = MISSING,
-    job_name: str | None = MISSING,
-    start_time: str | None = MISSING,
-    end_time: str | None = MISSING,
-    memo: str | None = MISSING,
-    duration_hours: float | None = MISSING,
+    project_name: str | None | _MissingType = MISSING,
+    job_name: str | None | _MissingType = MISSING,
+    start_time: str | None | _MissingType = MISSING,
+    end_time: str | None | _MissingType = MISSING,
+    memo: str | None | _MissingType = MISSING,
+    duration_hours: float | None | _MissingType = MISSING,
 ) -> None:
     """Update an existing log entry's details. Omitted fields remain unchanged.
 
@@ -638,13 +652,23 @@ def update_log(
 
         # Merge values
         final_start = (
-            start_time if start_time is not MISSING else existing["start_time"]
+            start_time
+            if not isinstance(start_time, _MissingType)
+            else existing["start_time"]
         )
-        final_end = end_time if end_time is not MISSING else existing["end_time"]
-        final_memo = memo if memo is not MISSING else existing["memo"]
+        final_end = (
+            end_time
+            if not isinstance(end_time, _MissingType)
+            else existing["end_time"]
+        )
+        final_memo = (
+            memo
+            if not isinstance(memo, _MissingType)
+            else existing["memo"]
+        )
         final_duration = (
             duration_hours
-            if duration_hours is not MISSING
+            if not isinstance(duration_hours, _MissingType)
             else existing["duration_hours"]
         )
 
@@ -746,14 +770,16 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
             (p_id, j_id, now, now, None),
         )
         conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to create assigned log")
         return cursor.lastrowid
 
 
 def update_job(
     project_name: str,
     job_name: str,
-    description: str | None = MISSING,
-    code: str | None = MISSING,
+    description: str | None | _MissingType = MISSING,
+    code: str | None | _MissingType = MISSING,
 ) -> None:
     """Update an existing job's details. Job name is immutable here.
 
@@ -813,7 +839,8 @@ def duplicate_log(
         int: The ID of the newly created log entry.
 
     Raises:
-        ValueError: If the log ID is not found, or if project/job names are not found/invalid.
+        ValueError: If the log ID is not found, or if project/job names
+            are not found/invalid.
     """
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -844,7 +871,9 @@ def duplicate_log(
             )
             j_res = cursor.fetchone()
             if not j_res:
-                raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
+                raise ValueError(
+                    f"Job '{job_name}' not found in project '{project_name}'."
+                )
             j_id = j_res["id"]
 
         # 3. Insert new duplicated log
@@ -861,5 +890,7 @@ def duplicate_log(
             ),
         )
         conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to duplicate log")
         return cursor.lastrowid
 

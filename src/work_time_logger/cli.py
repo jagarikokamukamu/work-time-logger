@@ -126,7 +126,8 @@ def start(
         error_msg = str(e)
         if "already running" in error_msg:
             console.print(
-                f"[red]Error: {error_msg}[/red] [yellow]Use --force or -f to start a parallel tracker.[/yellow]"
+                f"[red]Error: {error_msg}[/red] "
+                "[yellow]Use --force or -f to start a parallel tracker.[/yellow]"
             )
         else:
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -178,7 +179,10 @@ def list_projects(
     projects = operations.list_projects(include_archived=all)
     table = Table("ID", "Project Name", "Status")
     for p in projects:
-        status = "[yellow]Archived[/yellow]" if p["is_archived"] else "[green]Active[/green]"
+        status = (
+            "[yellow]Archived[/yellow]" if p["is_archived"]
+            else "[green]Active[/green]"
+        )
         table.add_row(Text(str(p["id"])), Text(p["name"]), status)
     console.print(table)
 
@@ -197,7 +201,10 @@ def favorite_job(
     """
     try:
         operations.set_job_favorite(project_name, name, True)
-        console.print(f"[green]Job '{name}' in project '{project_name}' marked as favorite.[/green]")
+        console.print(
+            f"[green]Job '{name}' in project '{project_name}' "
+            "marked as favorite.[/green]"
+        )
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 
@@ -214,7 +221,10 @@ def unfavorite_job(
     """
     try:
         operations.set_job_favorite(project_name, name, False)
-        console.print(f"[green]Job '{name}' in project '{project_name}' removed from favorites.[/green]")
+        console.print(
+            f"[green]Job '{name}' in project '{project_name}' "
+            "removed from favorites.[/green]"
+        )
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 
@@ -377,7 +387,12 @@ def list_jobs(
         table = Table("ID", "Job Name", "Project", "Favorite")
         for j in jobs:
             fav = "[yellow]⭐[/yellow]" if j["is_favorite"] else ""
-            table.add_row(Text(str(j["id"])), Text(j["name"]), Text(j["project_name"]), fav)
+            table.add_row(
+                Text(str(j["id"])),
+                Text(j["name"]),
+                Text(j["project_name"]),
+                fav
+            )
         console.print(table)
 
 

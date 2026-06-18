@@ -89,10 +89,10 @@ class DashboardScreen(Screen):
         """
         self.period = period
         # Update button styles
-        self.query_one("#btn-week").variant = (
+        self.query_one("#btn-week", Button).variant = (
             "primary" if period == "week" else "default"
         )
-        self.query_one("#btn-month").variant = (
+        self.query_one("#btn-month", Button).variant = (
             "primary" if period == "month" else "default"
         )
         self.update_dashboard()

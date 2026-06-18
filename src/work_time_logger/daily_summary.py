@@ -127,9 +127,15 @@ class DailySummaryScreen(Screen):
                 return
 
             starts = [
-                r.get("first_start") for r in aggregated_results if r.get("first_start")
+                str(r.get("first_start"))
+                for r in aggregated_results
+                if r.get("first_start")
             ]
-            ends = [r.get("last_end") for r in aggregated_results if r.get("last_end")]
+            ends = [
+                str(r.get("last_end"))
+                for r in aggregated_results
+                if r.get("last_end")
+            ]
 
             first_s = min(starts) if starts else ""
             last_e = max(ends) if ends else ""

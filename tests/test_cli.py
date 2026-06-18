@@ -1,3 +1,5 @@
+import typing
+
 import pytest
 from typer.testing import CliRunner
 
@@ -80,7 +82,7 @@ def test_start_parallel_with_force_cli():
 
     # Verify two are running
     logs = operations.list_logs()
-    running = [l for l in logs if l["end_time"] is None]
+    running = [log for log in logs if log["end_time"] is None]
     assert len(running) == 2
 
 
@@ -96,7 +98,7 @@ def test_stop_multiple_logs_cli():
 
     # Verify none are running
     logs = operations.list_logs()
-    running = [l for l in logs if l["end_time"] is None]
+    running = [log for log in logs if log["end_time"] is None]
     assert len(running) == 0
 
 
@@ -282,7 +284,9 @@ def test_complete_job_name():
     class MockContext:
         params = {"project_name": "ProjX"}
 
-    results = list(cli.complete_job_name(MockContext(), "Jo"))
+    results = list(
+        cli.complete_job_name(typing.cast(typing.Any, MockContext()), "Jo")
+    )
     assert "Job1" in results
     assert "Job2" in results
 

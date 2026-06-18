@@ -1,5 +1,6 @@
 import asyncio
 import textwrap
+import typing
 from pathlib import Path
 
 import pytest
@@ -113,7 +114,7 @@ async def test_confirm_delete_modal():
             nonlocal result
             result = res
 
-        modal.dismiss = mock_dismiss
+        typing.cast(typing.Any, modal).dismiss = mock_dismiss
 
         await app.push_screen(modal)
 
@@ -139,7 +140,7 @@ async def test_filter_modal():
             nonlocal result
             result = res
 
-        modal.dismiss = mock_dismiss
+        typing.cast(typing.Any, modal).dismiss = mock_dismiss
         await app.push_screen(modal)
 
         # Check initial value
@@ -165,7 +166,7 @@ async def test_export_logs_modal():
             nonlocal result
             result = res
 
-        modal_cancel.dismiss = mock_dismiss_cancel
+        typing.cast(typing.Any, modal_cancel).dismiss = mock_dismiss_cancel
         await app.push_screen(modal_cancel)
         await pilot.click("#btn-cancel")
         await pilot.pause()
@@ -179,7 +180,7 @@ async def test_export_logs_modal():
             nonlocal result
             result = res
 
-        modal_export.dismiss = mock_dismiss_export
+        typing.cast(typing.Any, modal_export).dismiss = mock_dismiss_export
         await app.push_screen(modal_export)
         await pilot.pause()  # Ensure it's mounted
         app.set_focus(modal_export.query_one("#btn-export"))
@@ -249,7 +250,7 @@ async def test_overlay_input_extended():
             nonlocal result
             result = val
 
-        overlay.callback = mock_callback
+        typing.cast(typing.Any, overlay).callback = mock_callback
         await overlay.action_submit()
         # Just verifying it runs without crashing, and callback might be called.
         assert result == "invalid" or result is None
@@ -565,7 +566,7 @@ async def test_job_selection_modal():
             nonlocal result
             result = res
 
-        modal.dismiss = mock_dismiss
+        typing.cast(typing.Any, modal).dismiss = mock_dismiss
         await app.push_screen(modal)
 
         from textual.widgets import OptionList

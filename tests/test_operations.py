@@ -271,35 +271,35 @@ def test_project_archive(setup_test_db):
     """Test project archiving and its effects on listing."""
     operations.add_project("Active Proj")
     operations.add_project("Target Proj")
-    
+
     # Initial state: both active
     projects = operations.list_projects()
     assert len(projects) == 2
-    
+
     # Archive one
     operations.set_project_archived("Target Proj", True)
-    
+
     # list_projects defaults to False
     projects = operations.list_projects()
     assert len(projects) == 1
     assert projects[0]["name"] == "Active Proj"
-    
+
     # include_archived=True should show both
     projects = operations.list_projects(include_archived=True)
     assert len(projects) == 2
-    
+
     # Add job to archived project
     operations.add_job("Job in Archived", "Target Proj")
-    
+
     # list_jobs defaults to False
     jobs = operations.list_jobs()
     assert len(jobs) == 0
-    
+
     # list_jobs(include_archived=True) should show it
     jobs = operations.list_jobs(include_archived=True)
     assert len(jobs) == 1
     assert jobs[0]["name"] == "Job in Archived"
-    
+
     # Unarchive
     operations.set_project_archived("Target Proj", False)
     projects = operations.list_projects()
@@ -322,12 +322,12 @@ def test_duplicate_log():
 
     # Duplicate to JobB
     dup_id = operations.duplicate_log(log_id, "Proj", "JobB")
-    
+
     logs_after = operations.list_logs()
     assert len(logs_after) == 2
 
     # Check duplicated entry values
-    dup_entry = next(l for l in logs_after if l["id"] == dup_id)
+    dup_entry = next(log for log in logs_after if log["id"] == dup_id)
     assert dup_entry["project_name"] == "Proj"
     assert dup_entry["job_name"] == "JobB"
     assert dup_entry["start_time"] == orig["start_time"]
@@ -340,7 +340,10 @@ def test_duplicate_log():
     logs_after_unassigned = operations.list_logs()
     assert len(logs_after_unassigned) == 3
 
-    dup_unassigned_entry = next(l for l in logs_after_unassigned if l["id"] == dup_unassigned_id)
+    dup_unassigned_entry = next(
+        log for log in logs_after_unassigned
+        if log["id"] == dup_unassigned_id
+    )
     assert dup_unassigned_entry["project_name"] is None
     assert dup_unassigned_entry["job_name"] is None
     assert dup_unassigned_entry["start_time"] == orig["start_time"]

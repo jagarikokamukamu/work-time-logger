@@ -595,19 +595,20 @@ def test_floor_rounding_precision_bug(tmp_path: Path):
 
     profile_path = tmp_path / "profile_bug.toml"
     with open(profile_path, "w", encoding="utf-8") as f:
-        f.write("""
-[export.extract]
-job_code = "^(?P<construction_no>[^_]*)_(?P<detail_no>[^_]*)_(?P<burden>[^_]*)_(?P<work_content>[^_]*)$"
-
-[export]
-group_by = ["construction_no", "detail_no", "burden", "work_content"]
-time_precision = 1
-time_rounding = "floor"
-time_aggregation_method = "round_subtotal_then_sum"
-
-[export.columns]
-"time" = "{{ aggregated_time }}"
-""")
+        f.write(
+            "[export.extract]\n"
+            'job_code = "^(?P<construction_no>[^_]*)_(?P<detail_no>[^_]*)_'
+            '(?P<burden>[^_]*)_(?P<work_content>[^_]*)$"\n'
+            "\n"
+            "[export]\n"
+            'group_by = ["construction_no", "detail_no", "burden", "work_content"]\n'
+            "time_precision = 1\n"
+            'time_rounding = "floor"\n'
+            'time_aggregation_method = "round_subtotal_then_sum"\n'
+            "\n"
+            "[export.columns]\n"
+            '"time" = "{{ aggregated_time }}"\n'
+        )
 
     out = tmp_path / "out_bug.csv"
     exporter.export_logs(str(profile_path), str(out), target_date="2026-06-16")
@@ -619,8 +620,10 @@ time_aggregation_method = "round_subtotal_then_sum"
     # 1. ProjMgmt: A(4.0) + A(0.3) + B(0.3) = 4.6
     # 2. DetailDesign: C(0.3)
     # Total sum of these sub-group columns in DailySummary: 4.6 + 0.3 = 4.9.
-    # Note that the subtotal_sum_for_agg within ProjMgmt: A(4.0 + 0.3) + B(0.3) = 4.3 + 0.3 = 4.6.
-    # With floating point error, 4.3 + 0.3 could be 4.5999999999999996, which floors to 4.5.
+    # Note that the subtotal_sum_for_agg within ProjMgmt:
+    # A(4.0 + 0.3) + B(0.3) = 4.3 + 0.3 = 4.6.
+    # With floating point error, 4.3 + 0.3 could be 4.5999999999999996,
+    # which floors to 4.5.
     # We assert it properly yields 4.6.
     proj_mgmt_row = next(r for r in rows if r["time"] != "0.3")
     assert float(proj_mgmt_row["time"]) == 4.6

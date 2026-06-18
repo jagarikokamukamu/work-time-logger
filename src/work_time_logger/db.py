@@ -40,7 +40,9 @@ def init_db():
         try:
             cursor.execute("SELECT is_archived FROM projects LIMIT 1")
         except sqlite3.OperationalError:
-            cursor.execute("ALTER TABLE projects ADD COLUMN is_archived INTEGER DEFAULT 0")
+            cursor.execute(
+                "ALTER TABLE projects ADD COLUMN is_archived INTEGER DEFAULT 0"
+            )
 
         # Jobs Table
         cursor.execute(

@@ -93,11 +93,11 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
             key=lambda x: (not x[2], x[0], x[1])  # x[2] is is_favorite
         )
 
-        for i, (p_name, j_name, is_fav) in enumerate(sorted_jobs):
+        for (p_name, j_name, is_fav) in sorted_jobs:
             label = f"{j_name} ({p_name})"
             if is_fav:
                 label = f"{fav_mark} {label}"
-            
+
             if term in label.lower():
                 # Use a string id to store both p_name and j_name
                 option_list.add_option(Option(prompt=label, id=f"{p_name}|{j_name}"))
