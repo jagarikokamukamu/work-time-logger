@@ -385,8 +385,8 @@ def is_any_job_running() -> bool:
 
 
 def start_log(
-    project_name: str = None,
-    job_name: str = None,
+    project_name: str | None = None,
+    job_name: str | None = None,
     memo: str = "",
     force_parallel: bool = False,
 ):

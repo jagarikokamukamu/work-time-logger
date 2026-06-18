@@ -1,10 +1,15 @@
 """Textual user interface for Work Time Logger."""
 
+from __future__ import annotations
+
+import tomllib
 import traceback
 from datetime import date, datetime, timedelta
 from enum import IntEnum
 from functools import partial
+from typing import cast
 
+from rich.text import Text
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -14,10 +19,8 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
-    Static,
     Tree,
 )
-from rich.text import Text
 
 from . import db, operations
 from .modals import (
@@ -74,7 +77,7 @@ class ProjectsTree(Tree):
                 if job:
                     new_status = not job["is_favorite"]
                     operations.set_job_favorite(project_name, job_name, new_status)
-                    self.app.refresh_data()
+                    cast("WtlApp", self.app).refresh_data()
             except Exception as e:
                 self.app.notify(f"Error: {e}", severity="error")
 
@@ -96,7 +99,7 @@ class ProjectsTree(Tree):
                 if p:
                     new_status = not p["is_archived"]
                     operations.set_project_archived(project_name, new_status)
-                    self.app.refresh_data()
+                    cast("WtlApp", self.app).refresh_data()
             except Exception as e:
                 self.app.notify(f"Error: {e}", severity="error")
 
@@ -124,7 +127,7 @@ class ProjectsTree(Tree):
             project_name = node.data["project_name"]
             try:
                 operations.create_assigned_log(project_name, job_name)
-                self.app.refresh_data()
+                cast("WtlApp", self.app).refresh_data()
             except Exception as e:
                 self.app.notify(f"Error: {e}", severity="error")
 
@@ -143,9 +146,13 @@ class LogsTable(DataTable):
         Binding("D", "app.delete_log", "Delete", show=True),
         Binding("r", "app.restart_job", "Restart", show=True),
         Binding("p", "app.parallel_clone_assigned", "Parallel Clone (Job)", show=True),
-        Binding("P", "app.parallel_clone_unassigned", "Parallel Clone (Unassigned)", show=True),
+        Binding(
+            "P",
+            "app.parallel_clone_unassigned",
+            "Parallel Clone (Unassigned)",
+            show=True,
+        ),
     ]
-
 
 
 class WtlApp(App):
@@ -215,8 +222,6 @@ class WtlApp(App):
         try:
             profile_path = db.DB_DIR / "profile.toml"
             if profile_path.exists():
-                import tomllib
-
                 with open(profile_path, "rb") as f:
                     config = tomllib.load(f)
                     tui_cfg = config.get("tui", {})
@@ -320,7 +325,8 @@ class WtlApp(App):
                 "Pinned", expand=True, data={"type": "pinned_root"}
             )
             for j in favorites:
-                # Inside Pinned section, we use a simple label to avoid too much distraction
+                # Inside Pinned section, we use a simple label
+                # to avoid too much distraction
                 label = f"{j['name']} ({j['project_name']})"
                 pinned_node.add_leaf(
                     label,
@@ -675,7 +681,7 @@ class WtlApp(App):
             event (Input.Submitted): The event object from the submitted input.
         """
         val = event.value.strip()
-        inp = event.control
+        inp = cast(OverlayInput, event.control)
         if inp.edit_mode == "date_only":
             smart_date = operations.parse_smart_date(val)
             if smart_date is None:
@@ -752,7 +758,7 @@ class WtlApp(App):
                         et = datetime.fromisoformat(current_log["end_time"])
                         if et < st:
 
-                            def check_adjust_end(confirm: bool) -> None:
+                            def check_adjust_end(confirm: bool | None) -> None:
                                 if confirm:
                                     self._commit_log_update(
                                         current_log, start_time=val, end_time=val
@@ -761,7 +767,8 @@ class WtlApp(App):
                             self.push_screen(
                                 ConfirmActionModal(
                                     "Time Validation",
-                                    "Start time is after end time. Adjust end time to match?",
+                                    "Start time is after end time. "
+                                    "Adjust end time to match?",
                                     yes_label="Adjust (y)",
                                     no_label="Cancel (c)",
                                 ),
@@ -774,23 +781,24 @@ class WtlApp(App):
                     st = datetime.fromisoformat(current_log["start_time"])
                     if et < st:
 
-                            def check_adjust_start(confirm: bool) -> None:
-                                if confirm:
-                                    self._commit_log_update(
-                                        current_log, start_time=val, end_time=val
-                                    )
+                        def check_adjust_start(confirm: bool | None) -> None:
+                            if confirm:
+                                self._commit_log_update(
+                                    current_log, start_time=val, end_time=val
+                                )
 
-                            self.push_screen(
-                                ConfirmActionModal(
+                        self.push_screen(
+                            ConfirmActionModal(
                                     "Time Validation",
-                                    "End time is before start time. Adjust start time to match?",
+                                    "End time is before start time. "
+                                    "Adjust start time to match?",
                                     yes_label="Adjust (y)",
                                     no_label="Cancel (c)",
-                                ),
-                                check_adjust_start,
-                            )
-                            self._hide_edit_overlay()
-                            return
+                            ),
+                            check_adjust_start,
+                        )
+                        self._hide_edit_overlay()
+                        return
             except (ValueError, TypeError):
                 # Invalid date formats or mixed types; validation handled by callers.
                 pass
@@ -923,7 +931,7 @@ class WtlApp(App):
         """Helper to start a log, handling parallel tracking confirmation if needed."""
         if operations.is_any_job_running():
 
-            def cb(res: bool, memo=memo) -> None:
+            def cb(res: bool | None, memo=memo) -> None:
                 if res:
                     try:
                         operations.start_log(
@@ -1063,10 +1071,10 @@ class WtlApp(App):
         if not cell_key or not cell_key.row_key or not cell_key.row_key.value:
             return
 
-        def check_delete(confirm: bool) -> None:
+        def check_delete(confirm: bool | None) -> None:
             if confirm:
                 try:
-                    log_id = int(cell_key.row_key.value)
+                    log_id = int(str(cell_key.row_key.value))
                     operations.delete_log(log_id)
                     self.refresh_data()
                 except Exception as e:
