@@ -38,6 +38,7 @@ jobs:
           echo "pyproject.toml Version: $UV_VERSION"
           if [ "$TAG_VERSION" != "$UV_VERSION" ]; then
             echo "Error: Version mismatch! Tag is '$TAG_VERSION' but pyproject.toml is '$UV_VERSION'"
+            echo "Hint: To resolve this, run 'uv version $TAG_VERSION' in your workspace, or recreate the Git tag as 'v$UV_VERSION'"
             exit 1
           fi
 
