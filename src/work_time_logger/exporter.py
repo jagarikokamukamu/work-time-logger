@@ -8,9 +8,9 @@ and Jinja2-based template rendering for notes and columns.
 import csv
 import math
 import os
-import typing
 import re
 import tomllib
+import typing
 from datetime import datetime
 from itertools import groupby
 

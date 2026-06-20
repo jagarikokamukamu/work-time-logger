@@ -208,8 +208,7 @@ def list_projects(
     table = Table("ID", "Project Name", "Status")
     for p in projects:
         status = (
-            "[yellow]Archived[/yellow]" if p["is_archived"]
-            else "[green]Active[/green]"
+            "[yellow]Archived[/yellow]" if p["is_archived"] else "[green]Active[/green]"
         )
         table.add_row(Text(str(p["id"])), Text(p["name"]), status)
     console.print(table)
@@ -219,8 +218,11 @@ def list_projects(
 def favorite_job(
     name: str = typer.Option(..., "--job", "-j", help="Name of the job."),
     project_name: str = typer.Option(
-        ..., "--project", "-p", help="Name of the project.",
-        autocompletion=complete_project_name
+        ...,
+        "--project",
+        "-p",
+        help="Name of the project.",
+        autocompletion=complete_project_name,
     ),
 ):
     """Mark a job as favorite.
@@ -241,12 +243,14 @@ def favorite_job(
 def unfavorite_job(
     name: str = typer.Option(..., "--job", "-j", help="Name of the job."),
     project_name: str = typer.Option(
-        ..., "--project", "-p", help="Name of the project.",
-        autocompletion=complete_project_name
+        ...,
+        "--project",
+        "-p",
+        help="Name of the project.",
+        autocompletion=complete_project_name,
     ),
 ):
-    """Remove a job from favorites.
-    """
+    """Remove a job from favorites."""
     try:
         operations.set_job_favorite(project_name, name, False)
         console.print(
@@ -260,8 +264,11 @@ def unfavorite_job(
 @project_app.command("archive")
 def archive_project(
     name: str = typer.Option(
-        ..., "--project", "-p", help="Name of the project to archive.",
-        autocompletion=complete_project_name
+        ...,
+        "--project",
+        "-p",
+        help="Name of the project to archive.",
+        autocompletion=complete_project_name,
     ),
 ):
     """Archive a project.
@@ -278,11 +285,15 @@ def archive_project(
 @project_app.command("unarchive")
 def unarchive_project(
     name: str = typer.Option(
-        ..., "--project", "-p", help="Name of the project to unarchive.",
+        ...,
+        "--project",
+        "-p",
+        help="Name of the project to unarchive.",
         autocompletion=lambda incomplete: [
-            p["name"] for p in operations.list_projects(include_archived=True)
+            p["name"]
+            for p in operations.list_projects(include_archived=True)
             if p["is_archived"] and p["name"].startswith(incomplete)
-        ]
+        ],
     ),
 ):
     """Unarchive a project.
@@ -416,10 +427,7 @@ def list_jobs(
         for j in jobs:
             fav = "[yellow]⭐[/yellow]" if j["is_favorite"] else ""
             table.add_row(
-                Text(str(j["id"])),
-                Text(j["name"]),
-                Text(j["project_name"]),
-                fav
+                Text(str(j["id"])), Text(j["name"]), Text(j["project_name"]), fav
             )
         console.print(table)
 

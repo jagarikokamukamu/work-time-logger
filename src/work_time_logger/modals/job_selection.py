@@ -90,10 +90,10 @@ class JobSelectionModal(BaseModal[tuple[str, str]]):
         # Sort: Favorites first, then by project/job name
         sorted_jobs = sorted(
             self.jobs,
-            key=lambda x: (not x[2], x[0], x[1])  # x[2] is is_favorite
+            key=lambda x: (not x[2], x[0], x[1]),  # x[2] is is_favorite
         )
 
-        for (p_name, j_name, is_fav) in sorted_jobs:
+        for p_name, j_name, is_fav in sorted_jobs:
             label = f"{j_name} ({p_name})"
             if is_fav:
                 label = f"{fav_mark} {label}"

@@ -87,7 +87,7 @@ def _record_history(
     action_type: str,
     target_id: int,
     before_data: dict | None = None,
-    after_data: dict | None = None
+    after_data: dict | None = None,
 ) -> None:
     """Record an operation to operation_history table."""
     # Delete any redo history (undo_status = 1) because a new action is performed
@@ -98,10 +98,13 @@ def _record_history(
 
     cursor.execute(
         """
-        INSERT INTO operation_history (group_id, action_type, target_table, target_id, before_data, after_data, undo_status)
+        INSERT INTO operation_history (
+            group_id, action_type, target_table, target_id,
+            before_data, after_data, undo_status
+        )
         VALUES (?, ?, 'logs', ?, ?, ?, 0)
         """,
-        (group_id, action_type, target_id, before_json, after_json)
+        (group_id, action_type, target_id, before_json, after_json),
     )
 
     # History rotation (keep up to 30 groups)
@@ -117,7 +120,7 @@ def _record_history(
         placeholders = ",".join("?" for _ in groups_to_delete)
         cursor.execute(
             f"DELETE FROM operation_history WHERE group_id IN ({placeholders})",
-            tuple(groups_to_delete)
+            tuple(groups_to_delete),
         )
 
 
@@ -216,10 +219,7 @@ def delete_project(project_id: int):
 
 
 def add_job(
-    name: str,
-    project_name: str,
-    description: str = "",
-    code: str | None = None
+    name: str, project_name: str, description: str = "", code: str | None = None
 ) -> int:
     """Add a new job under a specific project.
 
@@ -507,7 +507,9 @@ def start_log(
 
         after_data = _get_log_as_dict(cursor, log_id)
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data)
+        _record_history(
+            cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data
+        )
 
         conn.commit()
         return log_id
@@ -543,7 +545,14 @@ def stop_log(log_id: int):
 
         after_data = _get_log_as_dict(cursor, row["id"])
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "UPDATE", row["id"], before_data=before_data, after_data=after_data)
+        _record_history(
+            cursor,
+            group_id,
+            "UPDATE",
+            row["id"],
+            before_data=before_data,
+            after_data=after_data,
+        )
 
         conn.commit()
         return row["id"]
@@ -575,7 +584,14 @@ def stop_all_logs():
                 "UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"])
             )
             after_data = _get_log_as_dict(cursor, row["id"])
-            _record_history(cursor, group_id, "UPDATE", row["id"], before_data=before_data, after_data=after_data)
+            _record_history(
+                cursor,
+                group_id,
+                "UPDATE",
+                row["id"],
+                before_data=before_data,
+                after_data=after_data,
+            )
             stopped_count += 1
 
         conn.commit()
@@ -628,7 +644,14 @@ def assign_log(log_id: int, project_name: str, job_name: str):
 
         after_data = _get_log_as_dict(cursor, log_id)
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "UPDATE", log_id, before_data=before_data, after_data=after_data)
+        _record_history(
+            cursor,
+            group_id,
+            "UPDATE",
+            log_id,
+            before_data=before_data,
+            after_data=after_data,
+        )
 
         conn.commit()
         return log_id
@@ -653,7 +676,9 @@ def create_empty_log() -> int:
 
         after_data = _get_log_as_dict(cursor, log_id)
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data)
+        _record_history(
+            cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data
+        )
 
         conn.commit()
         return log_id
@@ -736,15 +761,9 @@ def update_log(
             else existing["start_time"]
         )
         final_end = (
-            end_time
-            if not isinstance(end_time, _MissingType)
-            else existing["end_time"]
+            end_time if not isinstance(end_time, _MissingType) else existing["end_time"]
         )
-        final_memo = (
-            memo
-            if not isinstance(memo, _MissingType)
-            else existing["memo"]
-        )
+        final_memo = memo if not isinstance(memo, _MissingType) else existing["memo"]
         final_duration = (
             duration_hours
             if not isinstance(duration_hours, _MissingType)
@@ -777,7 +796,14 @@ def update_log(
 
         after_data = _get_log_as_dict(cursor, log_id)
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "UPDATE", log_id, before_data=before_data, after_data=after_data)
+        _record_history(
+            cursor,
+            group_id,
+            "UPDATE",
+            log_id,
+            before_data=before_data,
+            after_data=after_data,
+        )
 
         conn.commit()
 
@@ -800,7 +826,14 @@ def delete_log(log_id: int) -> None:
         cursor.execute("DELETE FROM logs WHERE id = ?", (log_id,))
 
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "DELETE", log_id, before_data=before_data, after_data=None)
+        _record_history(
+            cursor,
+            group_id,
+            "DELETE",
+            log_id,
+            before_data=before_data,
+            after_data=None,
+        )
 
         conn.commit()
 
@@ -867,7 +900,9 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
 
         after_data = _get_log_as_dict(cursor, log_id)
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data)
+        _record_history(
+            cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data
+        )
 
         conn.commit()
         return log_id
@@ -993,7 +1028,14 @@ def duplicate_log(
 
         after_data = _get_log_as_dict(cursor, new_log_id)
         group_id = str(uuid.uuid4())
-        _record_history(cursor, group_id, "INSERT", new_log_id, before_data=None, after_data=after_data)
+        _record_history(
+            cursor,
+            group_id,
+            "INSERT",
+            new_log_id,
+            before_data=None,
+            after_data=after_data,
+        )
 
         conn.commit()
         return new_log_id
@@ -1012,7 +1054,9 @@ def _insert_log_from_dict(cursor, data: dict):
     placeholders = ", ".join("?" for _ in fields)
     columns = ", ".join(fields)
     values = [data[f] for f in fields]
-    cursor.execute(f"INSERT INTO logs ({columns}) VALUES ({placeholders})", tuple(values))
+    cursor.execute(
+        f"INSERT INTO logs ({columns}) VALUES ({placeholders})", tuple(values)
+    )
 
 
 def undo() -> list[str]:
@@ -1054,7 +1098,9 @@ def undo() -> list[str]:
         for record in records:
             action_type = record["action_type"]
             target_id = record["target_id"]
-            before_data = json.loads(record["before_data"]) if record["before_data"] else None
+            before_data = (
+                json.loads(record["before_data"]) if record["before_data"] else None
+            )
 
             if action_type == "INSERT":
                 # Undo insert by deleting the inserted log
@@ -1121,7 +1167,9 @@ def redo() -> list[str]:
         for record in records:
             action_type = record["action_type"]
             target_id = record["target_id"]
-            after_data = json.loads(record["after_data"]) if record["after_data"] else None
+            after_data = (
+                json.loads(record["after_data"]) if record["after_data"] else None
+            )
 
             if action_type == "INSERT":
                 # Redo insert by re-inserting after_data
@@ -1147,4 +1195,3 @@ def redo() -> list[str]:
         )
         conn.commit()
         return redone_actions
-

@@ -240,9 +240,7 @@ class TimelineVisualizer(Static):
                 color_info[color]["intervals"].append((s_f, e_f))
 
             sorted_colors = sorted(
-                color_info.keys(),
-                key=lambda c: color_info[c]["dur"],
-                reverse=True
+                color_info.keys(), key=lambda c: color_info[c]["dur"], reverse=True
             )
 
             # Check for actual time overlap between DIFFERENT colors

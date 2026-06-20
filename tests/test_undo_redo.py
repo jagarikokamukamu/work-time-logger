@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import pytest
 
 from work_time_logger import db, operations
@@ -54,10 +55,10 @@ def test_undo_redo_start_log():
 
 def test_undo_redo_stop_log():
     log_id = operations.start_log(memo="Tracking to stop")
-    
+
     # Stop the log (UPDATE)
     operations.stop_log(log_id)
-    
+
     logs = operations.list_logs()
     assert logs[0]["end_time"] is not None
 
@@ -84,7 +85,7 @@ def test_undo_redo_update_log():
 
     # Update log memo
     operations.update_log(log_id, memo="Updated Memo")
-    
+
     logs = operations.list_logs()
     assert logs[0]["memo"] == "Updated Memo"
 

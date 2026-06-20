@@ -56,10 +56,18 @@ job_code = "(?P<proj>[A-Z0-9]+)_(?P<sub>[0-9]+)_(?P<cost>[A-Z]+)_\
 """)
 
     # Run command
-    result = runner.invoke(app, [
-        "job", "list", "--codes", "--project", project_name,
-        "--profile", str(profile_path)
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "job",
+            "list",
+            "--codes",
+            "--project",
+            project_name,
+            "--profile",
+            str(profile_path),
+        ],
+    )
 
     assert result.exit_code == 0
     # Check if key values are in output (from job code expansion)

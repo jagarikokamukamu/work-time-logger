@@ -166,9 +166,7 @@ class JobCodeModal(BaseModal):
             table.add_row(Text(str(col_name)), Text(str(value)), key=col_name)
 
     @on(DataTable.CellSelected, "#attributes-table")
-    def on_attribute_selected(
-        self, event: DataTable.CellSelected
-    ) -> None:
+    def on_attribute_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection for editing in Attributes table."""
         event.stop()
 
@@ -184,7 +182,7 @@ class JobCodeModal(BaseModal):
         if row_key in self.name_vars:
             self.app.notify(
                 "Job names cannot be edited directly (depends on project settings)",
-                severity="warning"
+                severity="warning",
             )
             return
 

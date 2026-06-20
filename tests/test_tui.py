@@ -496,6 +496,7 @@ async def test_tui_parallel_clone():
         await pilot.pause(0.1)
 
         from work_time_logger.modals import JobSelectionModal
+
         assert isinstance(app.screen, JobSelectionModal)
 
         # Type the target job name to filter the option list
@@ -505,6 +506,7 @@ async def test_tui_parallel_clone():
 
         # Focus the OptionList and select the filtered job
         from textual.widgets import OptionList
+
         job_list = app.screen.query_one(OptionList)
         app.set_focus(job_list)
         await pilot.press("down")
@@ -518,8 +520,6 @@ async def test_tui_parallel_clone():
         # There should be 3 rows now
         assert table.row_count == 3
         proj_jobs = [
-            (str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2]))
-            for i in range(3)
+            (str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2])) for i in range(3)
         ]
         assert ("CloneProj", "CloneJobB") in proj_jobs
-

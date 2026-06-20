@@ -132,9 +132,7 @@ class DailySummaryScreen(Screen):
                 if r.get("first_start")
             ]
             ends = [
-                str(r.get("last_end"))
-                for r in aggregated_results
-                if r.get("last_end")
+                str(r.get("last_end")) for r in aggregated_results if r.get("last_end")
             ]
 
             first_s = min(starts) if starts else ""
@@ -245,6 +243,7 @@ class DailySummaryScreen(Screen):
 
     def action_show_date_input(self) -> None:
         """Show the date input modal for direct jumping."""
+
         def callback(new_date: str | None) -> None:
             if new_date:
                 self.target_date = new_date

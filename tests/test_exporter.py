@@ -403,6 +403,8 @@ job_code = "NEW_{{ num }}"
     assert job is not None
     assert job["description"] == "New: updated memo"
     assert job["code"] == "NEW_999"
+
+
 def test_time_aggregation_method_subtotal(tmp_path: Path):
     """Test round_subtotal_then_sum method.
     It should round the sum of raw hours for each sub-group (memo),
@@ -534,8 +536,13 @@ note_separator = "/"
     for memo in ["M1", "M2"]:
         lid = operations.create_empty_log()
         operations.update_log(
-            lid, "DiffProject", "Job1", "2024-04-02T10:00:00", "2024-04-02T10:00:00",
-            memo=memo, duration_hours=1.03
+            lid,
+            "DiffProject",
+            "Job1",
+            "2024-04-02T10:00:00",
+            "2024-04-02T10:00:00",
+            memo=memo,
+            duration_hours=1.03,
         )
 
     def run_export_diff(method: str) -> float:
