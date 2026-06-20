@@ -95,6 +95,23 @@ def init_db():
         except sqlite3.OperationalError:
             cursor.execute("ALTER TABLE logs ADD COLUMN duration_hours REAL")
 
+        # Operation History Table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS operation_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                target_table TEXT NOT NULL,
+                target_id INTEGER NOT NULL,
+                before_data TEXT,
+                after_data TEXT,
+                undo_status INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+        )
+
         conn.commit()
 
 

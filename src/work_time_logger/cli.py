@@ -146,6 +146,34 @@ def stop():
         console.print(f"[red]Error: {e}[/red]")
 
 
+@app.command("undo")
+def undo():
+    """Undo the last log operation."""
+    try:
+        undone_actions = operations.undo()
+        if undone_actions:
+            actions_str = ", ".join(undone_actions)
+            console.print(f"[green]Undo successful! Undid: {actions_str}[/green]")
+        else:
+            console.print("[yellow]Nothing to undo.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error during undo: {e}[/red]")
+
+
+@app.command("redo")
+def redo():
+    """Redo the last undone log operation."""
+    try:
+        redone_actions = operations.redo()
+        if redone_actions:
+            actions_str = ", ".join(redone_actions)
+            console.print(f"[green]Redo successful! Redid: {actions_str}[/green]")
+        else:
+            console.print("[yellow]Nothing to redo.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error during redo: {e}[/red]")
+
+
 # --- Project Commands ---
 
 
