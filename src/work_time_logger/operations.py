@@ -1,7 +1,9 @@
 """Core business logic and database operations for Work Time Logger."""
 
 import csv
+import json
 import re
+import uuid
 from datetime import date, datetime, timedelta
 
 from jinja2 import Environment, Undefined
@@ -70,6 +72,53 @@ def parse_smart_date(s: str) -> str | None:
         return date.fromisoformat(s).isoformat()
     except ValueError:
         return None
+
+
+def _get_log_as_dict(cursor, log_id: int) -> dict | None:
+    """Fetch log entry by ID and return as a dictionary."""
+    cursor.execute("SELECT * FROM logs WHERE id = ?", (log_id,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+
+def _record_history(
+    cursor,
+    group_id: str,
+    action_type: str,
+    target_id: int,
+    before_data: dict | None = None,
+    after_data: dict | None = None
+) -> None:
+    """Record an operation to operation_history table."""
+    # Delete any redo history (undo_status = 1) because a new action is performed
+    cursor.execute("DELETE FROM operation_history WHERE undo_status = 1")
+
+    before_json = json.dumps(before_data) if before_data is not None else None
+    after_json = json.dumps(after_data) if after_data is not None else None
+
+    cursor.execute(
+        """
+        INSERT INTO operation_history (group_id, action_type, target_table, target_id, before_data, after_data, undo_status)
+        VALUES (?, ?, 'logs', ?, ?, ?, 0)
+        """,
+        (group_id, action_type, target_id, before_json, after_json)
+    )
+
+    # History rotation (keep up to 30 groups)
+    cursor.execute(
+        """
+        SELECT DISTINCT group_id FROM operation_history
+        ORDER BY created_at DESC, id DESC
+        """
+    )
+    groups = [r["group_id"] for r in cursor.fetchall()]
+    if len(groups) > 30:
+        groups_to_delete = groups[30:]
+        placeholders = ",".join("?" for _ in groups_to_delete)
+        cursor.execute(
+            f"DELETE FROM operation_history WHERE group_id IN ({placeholders})",
+            tuple(groups_to_delete)
+        )
 
 
 def setup():
@@ -452,10 +501,16 @@ def start_log(
             "VALUES (?, ?, ?, ?)",
             (p_id, j_id, now, memo),
         )
-        conn.commit()
-        if cursor.lastrowid is None:
+        log_id = cursor.lastrowid
+        if log_id is None:
             raise RuntimeError("Failed to start log")
-        return cursor.lastrowid
+
+        after_data = _get_log_as_dict(cursor, log_id)
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data)
+
+        conn.commit()
+        return log_id
 
 
 def stop_log(log_id: int):
@@ -481,8 +536,15 @@ def stop_log(log_id: int):
         if not row:
             raise ValueError(f"Log ID {log_id} is not running.")
 
+        before_data = _get_log_as_dict(cursor, row["id"])
+
         now = datetime.now().replace(microsecond=0).isoformat()
         cursor.execute("UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"]))
+
+        after_data = _get_log_as_dict(cursor, row["id"])
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "UPDATE", row["id"], before_data=before_data, after_data=after_data)
+
         conn.commit()
         return row["id"]
 
@@ -505,11 +567,15 @@ def stop_all_logs():
             raise ValueError("No running jobs found.")
 
         now = datetime.now().replace(microsecond=0).isoformat()
+        group_id = str(uuid.uuid4())
         stopped_count = 0
         for row in rows:
+            before_data = _get_log_as_dict(cursor, row["id"])
             cursor.execute(
                 "UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"])
             )
+            after_data = _get_log_as_dict(cursor, row["id"])
+            _record_history(cursor, group_id, "UPDATE", row["id"], before_data=before_data, after_data=after_data)
             stopped_count += 1
 
         conn.commit()
@@ -553,10 +619,17 @@ def assign_log(log_id: int, project_name: str, job_name: str):
             raise ValueError(f"Job '{job_name}' not found in project '{project_name}'.")
         j_id = j_res["id"]
 
+        before_data = _get_log_as_dict(cursor, log_id)
+
         cursor.execute(
             "UPDATE logs SET project_id = ?, job_id = ? WHERE id = ?",
             (p_id, j_id, log_id),
         )
+
+        after_data = _get_log_as_dict(cursor, log_id)
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "UPDATE", log_id, before_data=before_data, after_data=after_data)
+
         conn.commit()
         return log_id
 
@@ -574,10 +647,16 @@ def create_empty_log() -> int:
             "INSERT INTO logs (start_time, end_time) VALUES (?, ?)",
             (now, now),
         )
-        conn.commit()
-        if cursor.lastrowid is None:
+        log_id = cursor.lastrowid
+        if log_id is None:
             raise RuntimeError("Failed to create empty log")
-        return cursor.lastrowid
+
+        after_data = _get_log_as_dict(cursor, log_id)
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data)
+
+        conn.commit()
+        return log_id
 
 
 # Sentinel for optional arguments in update_log
@@ -684,6 +763,8 @@ def update_log(
         except ValueError as e:
             raise ValueError(f"Invalid date/time format or value: {e}") from e
 
+        before_data = _get_log_as_dict(cursor, log_id)
+
         cursor.execute(
             """
             UPDATE logs
@@ -693,6 +774,11 @@ def update_log(
             """,
             (p_id, j_id, final_start, final_end, final_memo, final_duration, log_id),
         )
+
+        after_data = _get_log_as_dict(cursor, log_id)
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "UPDATE", log_id, before_data=before_data, after_data=after_data)
+
         conn.commit()
 
 
@@ -707,9 +793,15 @@ def delete_log(log_id: int) -> None:
     """
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM logs WHERE id = ?", (log_id,))
-        if cursor.rowcount == 0:
+        before_data = _get_log_as_dict(cursor, log_id)
+        if not before_data:
             raise ValueError(f"Log ID {log_id} not found.")
+
+        cursor.execute("DELETE FROM logs WHERE id = ?", (log_id,))
+
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "DELETE", log_id, before_data=before_data, after_data=None)
+
         conn.commit()
 
 
@@ -769,10 +861,16 @@ def create_assigned_log(project_name: str, job_name: str) -> int:
             "duration_hours) VALUES (?, ?, ?, ?, ?)",
             (p_id, j_id, now, now, None),
         )
-        conn.commit()
-        if cursor.lastrowid is None:
+        log_id = cursor.lastrowid
+        if log_id is None:
             raise RuntimeError("Failed to create assigned log")
-        return cursor.lastrowid
+
+        after_data = _get_log_as_dict(cursor, log_id)
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data)
+
+        conn.commit()
+        return log_id
 
 
 def update_job(
@@ -889,8 +987,164 @@ def duplicate_log(
                 orig["duration_hours"],
             ),
         )
-        conn.commit()
-        if cursor.lastrowid is None:
+        new_log_id = cursor.lastrowid
+        if new_log_id is None:
             raise RuntimeError("Failed to duplicate log")
-        return cursor.lastrowid
+
+        after_data = _get_log_as_dict(cursor, new_log_id)
+        group_id = str(uuid.uuid4())
+        _record_history(cursor, group_id, "INSERT", new_log_id, before_data=None, after_data=after_data)
+
+        conn.commit()
+        return new_log_id
+
+
+def _update_log_from_dict(cursor, log_id: int, data: dict):
+    fields = [k for k in data.keys() if k != "id"]
+    set_clause = ", ".join(f"{f} = ?" for f in fields)
+    values = [data[f] for f in fields]
+    values.append(log_id)
+    cursor.execute(f"UPDATE logs SET {set_clause} WHERE id = ?", tuple(values))
+
+
+def _insert_log_from_dict(cursor, data: dict):
+    fields = list(data.keys())
+    placeholders = ", ".join("?" for _ in fields)
+    columns = ", ".join(fields)
+    values = [data[f] for f in fields]
+    cursor.execute(f"INSERT INTO logs ({columns}) VALUES ({placeholders})", tuple(values))
+
+
+def undo() -> list[str]:
+    """Undo the last log operation.
+
+    Returns:
+        list[str]: A list of descriptions of undone actions.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Find the latest group that is NOT undone
+        cursor.execute(
+            """
+            SELECT group_id FROM operation_history
+            WHERE undo_status = 0
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if not row:
+            return []
+
+        group_id = row["group_id"]
+
+        # Fetch all records in this group, in reverse order (id DESC)
+        cursor.execute(
+            """
+            SELECT * FROM operation_history
+            WHERE group_id = ? AND undo_status = 0
+            ORDER BY id DESC
+            """,
+            (group_id,),
+        )
+        records = cursor.fetchall()
+        undone_actions = []
+
+        for record in records:
+            action_type = record["action_type"]
+            target_id = record["target_id"]
+            before_data = json.loads(record["before_data"]) if record["before_data"] else None
+
+            if action_type == "INSERT":
+                # Undo insert by deleting the inserted log
+                cursor.execute("DELETE FROM logs WHERE id = ?", (target_id,))
+                undone_actions.append(f"Deleted log ID {target_id}")
+
+            elif action_type == "UPDATE":
+                # Undo update by applying before_data
+                if before_data:
+                    _update_log_from_dict(cursor, target_id, before_data)
+                    undone_actions.append(f"Restored log ID {target_id} details")
+
+            elif action_type == "DELETE":
+                # Undo delete by re-inserting before_data
+                if before_data:
+                    _insert_log_from_dict(cursor, before_data)
+                    undone_actions.append(f"Restored deleted log ID {target_id}")
+
+        # Mark this group as undone (undo_status = 1)
+        cursor.execute(
+            "UPDATE operation_history SET undo_status = 1 WHERE group_id = ?",
+            (group_id,),
+        )
+        conn.commit()
+        return undone_actions
+
+
+def redo() -> list[str]:
+    """Redo the last undone log operation.
+
+    Returns:
+        list[str]: A list of descriptions of redone actions.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Find the oldest undone group (the first one in the Redo stack)
+        cursor.execute(
+            """
+            SELECT group_id FROM operation_history
+            WHERE undo_status = 1
+            ORDER BY created_at ASC, id ASC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if not row:
+            return []
+
+        group_id = row["group_id"]
+
+        # Fetch all records in this group, in forward order (id ASC)
+        cursor.execute(
+            """
+            SELECT * FROM operation_history
+            WHERE group_id = ? AND undo_status = 1
+            ORDER BY id ASC
+            """,
+            (group_id,),
+        )
+        records = cursor.fetchall()
+        redone_actions = []
+
+        for record in records:
+            action_type = record["action_type"]
+            target_id = record["target_id"]
+            after_data = json.loads(record["after_data"]) if record["after_data"] else None
+
+            if action_type == "INSERT":
+                # Redo insert by re-inserting after_data
+                if after_data:
+                    _insert_log_from_dict(cursor, after_data)
+                    redone_actions.append(f"Re-created log ID {target_id}")
+
+            elif action_type == "UPDATE":
+                # Redo update by applying after_data
+                if after_data:
+                    _update_log_from_dict(cursor, target_id, after_data)
+                    redone_actions.append(f"Applied updates to log ID {target_id}")
+
+            elif action_type == "DELETE":
+                # Redo delete by deleting the log again
+                cursor.execute("DELETE FROM logs WHERE id = ?", (target_id,))
+                redone_actions.append(f"Re-deleted log ID {target_id}")
+
+        # Mark this group as active (undo_status = 0)
+        cursor.execute(
+            "UPDATE operation_history SET undo_status = 0 WHERE group_id = ?",
+            (group_id,),
+        )
+        conn.commit()
+        return redone_actions
 

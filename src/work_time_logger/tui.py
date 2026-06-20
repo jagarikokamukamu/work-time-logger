@@ -194,6 +194,8 @@ class WtlApp(App):
         Binding("v", "show_summary", "Daily Summary", show=True),
         Binding("e", "export_logs", "Export Logs", show=True),
         Binding("h", "show_help", "Help", show=True),
+        Binding("ctrl+z", "undo", "Undo", show=True),
+        Binding("ctrl+y", "redo", "Redo", show=True),
         # Hidden commands
         Binding("q", "quit", "Quit", show=False),
         Binding("f1", "show_help", "Help", show=False),
@@ -876,6 +878,34 @@ class WtlApp(App):
         except (ValueError, TypeError):
             return None
         return next((entry for entry in self.logs if entry["id"] == log_id), None)
+
+
+    def action_undo(self) -> None:
+        """Undo the last log operation."""
+        try:
+            undone_actions = operations.undo()
+            if undone_actions:
+                self.refresh_data()
+                actions_str = ", ".join(undone_actions)
+                self.notify(f"Undo successful! Undid: {actions_str}", title="Undo")
+            else:
+                self.notify("Nothing to undo.", severity="warning")
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
+
+    def action_redo(self) -> None:
+        """Redo the last undone log operation."""
+        try:
+            redone_actions = operations.redo()
+            if redone_actions:
+                self.refresh_data()
+                actions_str = ", ".join(redone_actions)
+                self.notify(f"Redo successful! Redid: {actions_str}", title="Redo")
+            else:
+                self.notify("Nothing to redo.", severity="warning")
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
+
 
     def action_restart_job(self) -> None:
         """Action to restart the job associated with the selected log entry.
