@@ -284,9 +284,7 @@ def test_complete_job_name():
     class MockContext:
         params = {"project_name": "ProjX"}
 
-    results = list(
-        cli.complete_job_name(typing.cast(typing.Any, MockContext()), "Jo")
-    )
+    results = list(cli.complete_job_name(typing.cast(typing.Any, MockContext()), "Jo"))
     assert "Job1" in results
     assert "Job2" in results
 

@@ -357,6 +357,7 @@ async def test_daily_summary_date_jump():
 
         # Initial date check
         from datetime import date
+
         today_str = date.today().isoformat()
         assert screen.target_date == today_str
 
@@ -399,18 +400,14 @@ async def test_daily_summary_color_coding():
     # Add logs
     l1 = operations.start_log("ProjColor", "Job1")
     operations.update_log(
-        l1,
-        start_time=f"{target_date}T10:00:00",
-        end_time=f"{target_date}T11:00:00"
+        l1, start_time=f"{target_date}T10:00:00", end_time=f"{target_date}T11:00:00"
     )
 
     # stop_log() would stop l1 if it was running, but we already updated it.
     # We need to make sure no job is running before starting another.
     l2 = operations.start_log("ProjColor", "Job2")
     operations.update_log(
-        l2,
-        start_time=f"{target_date}T12:00:00",
-        end_time=f"{target_date}T13:00:00"
+        l2, start_time=f"{target_date}T12:00:00", end_time=f"{target_date}T13:00:00"
     )
 
     app = DummyApp()
@@ -437,6 +434,7 @@ async def test_daily_summary_color_coding():
 
         # Verify visualizer intervals have colors matching the rows
         from work_time_logger.widgets import TimelineVisualizer
+
         viz = screen.query_one(TimelineVisualizer)
         assert len(viz.intervals) == 2
         # interval: (start, end, color)
@@ -455,9 +453,7 @@ async def test_wtl_app_date_sync():
     l1 = operations.start_log("PJ", "JB")
     # Exact 1 hour on the same day
     operations.update_log(
-        l1,
-        start_time=f"{target_date}T10:00:00",
-        end_time=f"{target_date}T11:00:00"
+        l1, start_time=f"{target_date}T10:00:00", end_time=f"{target_date}T11:00:00"
     )
 
     app = WtlApp()
@@ -492,9 +488,7 @@ async def test_wtl_app_date_sync_cross_day():
     l1 = operations.start_log("PJ", "JB")
     # Ends on the next day (02:00)
     operations.update_log(
-        l1,
-        start_time=f"{target_date}T22:00:00",
-        end_time="2023-10-02T02:00:00"
+        l1, start_time=f"{target_date}T22:00:00", end_time="2023-10-02T02:00:00"
     )
 
     app = WtlApp()
@@ -525,9 +519,7 @@ async def test_wtl_app_time_overflow():
     operations.add_job("JB", "PJ", code="C1")
     l1 = operations.start_log("PJ", "JB")
     operations.update_log(
-        l1,
-        start_time=f"{target_date}T10:00:00",
-        end_time=f"{target_date}T11:00:00"
+        l1, start_time=f"{target_date}T10:00:00", end_time=f"{target_date}T11:00:00"
     )
 
     app = WtlApp()
@@ -570,6 +562,7 @@ async def test_job_selection_modal():
         await app.push_screen(modal)
 
         from textual.widgets import OptionList
+
         option_list = modal.query_one(OptionList)
 
         # Initially all jobs are present

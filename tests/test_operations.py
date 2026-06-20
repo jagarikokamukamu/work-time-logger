@@ -341,8 +341,7 @@ def test_duplicate_log():
     assert len(logs_after_unassigned) == 3
 
     dup_unassigned_entry = next(
-        log for log in logs_after_unassigned
-        if log["id"] == dup_unassigned_id
+        log for log in logs_after_unassigned if log["id"] == dup_unassigned_id
     )
     assert dup_unassigned_entry["project_name"] is None
     assert dup_unassigned_entry["job_name"] is None
@@ -359,4 +358,3 @@ def test_duplicate_log():
 
     with pytest.raises(ValueError, match="Job 'InvalidJob' not found"):
         operations.duplicate_log(log_id, "Proj", "InvalidJob")
-

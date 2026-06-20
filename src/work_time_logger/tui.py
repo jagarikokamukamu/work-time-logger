@@ -791,11 +791,11 @@ class WtlApp(App):
 
                         self.push_screen(
                             ConfirmActionModal(
-                                    "Time Validation",
-                                    "End time is before start time. "
-                                    "Adjust start time to match?",
-                                    yes_label="Adjust (y)",
-                                    no_label="Cancel (c)",
+                                "Time Validation",
+                                "End time is before start time. "
+                                "Adjust start time to match?",
+                                yes_label="Adjust (y)",
+                                no_label="Cancel (c)",
                             ),
                             check_adjust_start,
                         )
@@ -879,7 +879,6 @@ class WtlApp(App):
             return None
         return next((entry for entry in self.logs if entry["id"] == log_id), None)
 
-
     def action_undo(self) -> None:
         """Undo the last log operation."""
         try:
@@ -905,7 +904,6 @@ class WtlApp(App):
                 self.notify("Nothing to redo.", severity="warning")
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
-
 
     def action_restart_job(self) -> None:
         """Action to restart the job associated with the selected log entry.
