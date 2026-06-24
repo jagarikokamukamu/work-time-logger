@@ -408,3 +408,91 @@ def test_profile_open_missing(monkeypatch, tmp_path):
     result = runner.invoke(cli.app, ["profile", "open"])
     assert result.exit_code == 0
     assert "Error ensuring profile exists:" in result.stdout
+
+
+def test_profile_edit(monkeypatch, tmp_path):
+    opened_file = None
+
+    def mock_startfile(filepath):
+        nonlocal opened_file
+        opened_file = filepath
+
+    def mock_run(args, **kwargs):
+        nonlocal opened_file
+        opened_file = args[1] if len(args) > 1 else None
+
+    import os
+
+    if hasattr(os, "startfile"):
+        monkeypatch.setattr(os, "startfile", mock_startfile)
+    else:
+        import subprocess
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+    result = runner.invoke(cli.app, ["profile", "edit"])
+    assert result.exit_code == 0
+    assert "Opening " in result.stdout
+    assert opened_file is not None
+
+    opened_file = None
+    result = runner.invoke(cli.app, ["profile", "open"])
+    assert result.exit_code == 0
+    assert "Opening " in result.stdout
+    assert opened_file is not None
+
+
+def test_profile_path():
+    result = runner.invoke(cli.app, ["profile", "path"])
+    assert result.exit_code == 0
+    expected_path = str(db.DB_DIR / "profile.toml")
+    assert expected_path in result.stdout.strip()
+
+
+def test_profile_list():
+    result = runner.invoke(cli.app, ["profile", "list"])
+    assert result.exit_code == 0
+    assert "tui.copy_memo_on_restart = True" in result.stdout
+    assert "tui.duration_step = 0.1" in result.stdout
+
+
+def test_profile_get_and_set():
+    # 既存のキーの get
+    result = runner.invoke(cli.app, ["profile", "get", "tui.duration_step"])
+    assert result.exit_code == 0
+    assert "0.1" in result.stdout
+
+    # キーの set (float)
+    result = runner.invoke(cli.app, ["profile", "set", "tui.duration_step", "0.5"])
+    assert result.exit_code == 0
+    assert "Successfully set 'tui.duration_step' to '0.5'" in result.stdout
+
+    # 更新後の get
+    result = runner.invoke(cli.app, ["profile", "get", "tui.duration_step"])
+    assert result.exit_code == 0
+    assert "0.5" in result.stdout
+
+    # キーの set (bool)
+    result = runner.invoke(cli.app, ["profile", "set", "tui.copy_memo_on_restart", "false"])
+    assert result.exit_code == 0
+    result = runner.invoke(cli.app, ["profile", "get", "tui.copy_memo_on_restart"])
+    assert result.exit_code == 0
+    assert "False" in result.stdout
+
+    # キーの set (list/JSON)
+    result = runner.invoke(cli.app, ["profile", "set", "export.group_by", '["a", "b"]'])
+    assert result.exit_code == 0
+    result = runner.invoke(cli.app, ["profile", "get", "export.group_by"])
+    assert result.exit_code == 0
+    assert "['a', 'b']" in result.stdout
+
+    # 存在しないキーへの get はエラー
+    result = runner.invoke(cli.app, ["profile", "get", "invalid.key"])
+    assert result.exit_code != 0
+    assert "Error: Key 'invalid.key' not found in profile." in result.stdout
+
+    # セクション（辞書）そのものの get はエラー
+    result = runner.invoke(cli.app, ["profile", "get", "tui"])
+    assert result.exit_code != 0
+    assert "points to a section, not a specific value." in result.stdout
+

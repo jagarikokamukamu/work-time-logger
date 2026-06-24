@@ -658,8 +658,8 @@ def export_logs(
 # --- Profile Commands ---
 
 
-@profile_app.command("open")
-def open_profile():
+@profile_app.command("edit")
+def edit_profile():
     """Open the profile.toml file in the default system editor.
 
     Ensures the profile exists (creating a default one if necessary) and then
@@ -691,3 +691,148 @@ def open_profile():
             subprocess.run(["xdg-open", str(profile_path)], check=True)
     except Exception as e:
         console.print(f"[red]Error opening profile: {e}[/red]")
+
+
+@profile_app.command("open")
+def open_profile():
+    """Open the profile.toml file in the default system editor. (Alias for 'edit')"""
+    edit_profile()
+
+
+@profile_app.command("path")
+def show_path():
+    """Show the absolute path to the profile.toml file."""
+    profile_path = db.DB_DIR / "profile.toml"
+    print(profile_path)
+
+
+@profile_app.command("list")
+def list_profile():
+    """List all profile configuration settings."""
+    from rich.text import Text
+    from . import exporter
+
+    profile_path = db.DB_DIR / "profile.toml"
+    try:
+        config = exporter.load_profile(str(profile_path))
+    except Exception as e:
+        console.print(f"[red]Error loading profile: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    def flatten(d, parent_key=""):
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}.{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(flatten(v, new_key).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
+
+    flat = flatten(config)
+    for k, v in sorted(flat.items()):
+        text = Text()
+        text.append(k, style="bold cyan")
+        text.append(" = ")
+        text.append(str(v))
+        console.print(text)
+
+
+@profile_app.command("get")
+def get_profile_value(
+    name: str = typer.Argument(..., help="The configuration key (e.g., 'tui.duration_step')")
+):
+    """Get the value of a configuration setting."""
+    from . import exporter
+
+    profile_path = db.DB_DIR / "profile.toml"
+    try:
+        config = exporter.load_profile(str(profile_path))
+    except Exception as e:
+        console.print(f"[red]Error loading profile: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    keys = name.split(".")
+    curr = config
+    for k in keys:
+        if isinstance(curr, dict) and k in curr:
+            curr = curr[k]
+        else:
+            console.print(f"[red]Error: Key '{name}' not found in profile.[/red]")
+            raise typer.Exit(code=1)
+
+    if isinstance(curr, dict):
+        console.print(
+            f"[red]Error: Key '{name}' points to a section, not a specific value.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    print(curr)
+
+
+@profile_app.command("set")
+def set_profile_value(
+    name: str = typer.Argument(
+        ..., help="The configuration key (e.g., 'tui.duration_step')"
+    ),
+    value: str = typer.Argument(..., help="The value to set"),
+):
+    """Set the value of a configuration setting."""
+    import json
+    import tomlkit
+    from . import exporter
+
+    profile_path = db.DB_DIR / "profile.toml"
+    try:
+        exporter.load_profile(str(profile_path))
+    except Exception as e:
+        console.print(f"[red]Error loading profile: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        with open(profile_path, "r", encoding="utf-8") as f:
+            doc = tomlkit.parse(f.read())
+    except Exception as e:
+        console.print(f"[red]Error parsing TOML: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    def parse_val(v_str: str):
+        if v_str.lower() == "true":
+            return True
+        if v_str.lower() == "false":
+            return False
+        try:
+            if "." in v_str:
+                return float(v_str)
+            return int(v_str)
+        except ValueError:
+            pass
+        try:
+            parsed = json.loads(v_str)
+            if isinstance(parsed, (list, dict)):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return v_str
+
+    parsed_value = parse_val(value)
+
+    keys = name.split(".")
+    curr = doc
+    for k in keys[:-1]:
+        if k not in curr:
+            curr[k] = tomlkit.table()
+        elif not isinstance(curr[k], dict):
+            curr[k] = tomlkit.table()
+        curr = curr[k]
+
+    curr[keys[-1]] = parsed_value
+
+    try:
+        with open(profile_path, "w", encoding="utf-8") as f:
+            f.write(tomlkit.dumps(doc))
+        console.print(f"[green]Successfully set '{name}' to '{value}'.[/green]")
+    except Exception as e:
+        console.print(f"[red]Error saving profile: {e}[/red]")
+        raise typer.Exit(code=1)
+
