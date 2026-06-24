@@ -710,6 +710,7 @@ def show_path():
 def list_profile():
     """List all profile configuration settings."""
     from rich.text import Text
+
     from . import exporter
 
     profile_path = db.DB_DIR / "profile.toml"
@@ -717,7 +718,7 @@ def list_profile():
         config = exporter.load_profile(str(profile_path))
     except Exception as e:
         console.print(f"[red]Error loading profile: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     def flatten(d, parent_key=""):
         items = []
@@ -740,7 +741,9 @@ def list_profile():
 
 @profile_app.command("get")
 def get_profile_value(
-    name: str = typer.Argument(..., help="The configuration key (e.g., 'tui.duration_step')")
+    name: str = typer.Argument(
+        ..., help="The configuration key (e.g., 'tui.duration_step')"
+    ),
 ):
     """Get the value of a configuration setting."""
     from . import exporter
@@ -750,7 +753,7 @@ def get_profile_value(
         config = exporter.load_profile(str(profile_path))
     except Exception as e:
         console.print(f"[red]Error loading profile: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     keys = name.split(".")
     curr = config
@@ -779,7 +782,9 @@ def set_profile_value(
 ):
     """Set the value of a configuration setting."""
     import json
+
     import tomlkit
+
     from . import exporter
 
     profile_path = db.DB_DIR / "profile.toml"
@@ -787,14 +792,14 @@ def set_profile_value(
         exporter.load_profile(str(profile_path))
     except Exception as e:
         console.print(f"[red]Error loading profile: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     try:
-        with open(profile_path, "r", encoding="utf-8") as f:
+        with open(profile_path, encoding="utf-8") as f:
             doc = tomlkit.parse(f.read())
     except Exception as e:
         console.print(f"[red]Error parsing TOML: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     def parse_val(v_str: str):
         if v_str.lower() == "true":
@@ -834,5 +839,4 @@ def set_profile_value(
         console.print(f"[green]Successfully set '{name}' to '{value}'.[/green]")
     except Exception as e:
         console.print(f"[red]Error saving profile: {e}[/red]")
-        raise typer.Exit(code=1)
-
+        raise typer.Exit(code=1) from e

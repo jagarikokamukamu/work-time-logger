@@ -473,7 +473,9 @@ def test_profile_get_and_set():
     assert "0.5" in result.stdout
 
     # キーの set (bool)
-    result = runner.invoke(cli.app, ["profile", "set", "tui.copy_memo_on_restart", "false"])
+    result = runner.invoke(
+        cli.app, ["profile", "set", "tui.copy_memo_on_restart", "false"]
+    )
     assert result.exit_code == 0
     result = runner.invoke(cli.app, ["profile", "get", "tui.copy_memo_on_restart"])
     assert result.exit_code == 0
@@ -495,4 +497,3 @@ def test_profile_get_and_set():
     result = runner.invoke(cli.app, ["profile", "get", "tui"])
     assert result.exit_code != 0
     assert "points to a section, not a specific value." in result.stdout
-
