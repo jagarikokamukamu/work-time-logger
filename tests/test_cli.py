@@ -497,3 +497,17 @@ def test_profile_get_and_set():
     result = runner.invoke(cli.app, ["profile", "get", "tui"])
     assert result.exit_code != 0
     assert "points to a section, not a specific value." in result.stdout
+
+
+def test_ui_command(monkeypatch):
+
+    from unittest.mock import MagicMock
+
+    from work_time_logger.tui import WtlApp
+
+    mock_run = MagicMock()
+    monkeypatch.setattr(WtlApp, "run", mock_run)
+
+    result = runner.invoke(cli.app, ["ui"])
+    assert result.exit_code == 0
+    assert mock_run.called

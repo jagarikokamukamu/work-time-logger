@@ -840,3 +840,12 @@ def set_profile_value(
     except Exception as e:
         console.print(f"[red]Error saving profile: {e}[/red]")
         raise typer.Exit(code=1) from e
+
+
+@app.command("ui")
+def ui() -> None:
+    """Start the interactive Textual user interface."""
+    from .tui import WtlApp
+
+    wtl_app = WtlApp()
+    wtl_app.run()
