@@ -6,5 +6,3 @@ def main() -> None:
     """Entry point for the command-line interface."""
     init_db()
     app()
-
-

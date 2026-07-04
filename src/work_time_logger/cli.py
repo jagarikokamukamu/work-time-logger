@@ -849,4 +849,3 @@ def ui() -> None:
 
     wtl_app = WtlApp()
     wtl_app.run()
-

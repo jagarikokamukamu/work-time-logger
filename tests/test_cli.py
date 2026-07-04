@@ -502,6 +502,7 @@ def test_profile_get_and_set():
 def test_ui_command(monkeypatch):
 
     from unittest.mock import MagicMock
+
     from work_time_logger.tui import WtlApp
 
     mock_run = MagicMock()
@@ -510,4 +511,3 @@ def test_ui_command(monkeypatch):
     result = runner.invoke(cli.app, ["ui"])
     assert result.exit_code == 0
     assert mock_run.called
-
