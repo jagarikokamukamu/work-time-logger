@@ -20,8 +20,6 @@ widget = [
 [project.scripts]
 work-time-logger = "work_time_logger:main"
 wtl = "work_time_logger:main"
-wtlui = "work_time_logger:tui_main"
-wtl-widget = "work_time_logger.cli:widget"
 
 [build-system]
 requires = ["uv_build>=0.10.6,<0.11.0"]
