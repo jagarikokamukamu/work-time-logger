@@ -851,6 +851,31 @@ def ui() -> None:
     wtl_app.run()
 
 
+@app.command("widget")
+def widget() -> None:
+    """Start the desktop widget (requires 'widget' extra)."""
+    try:
+        import flet  # type: ignore[reportMissingImports] # noqa: F401 - intentional availability check for flet
+
+        from .widget import run_widget
+    except ImportError as err:
+        console.print(
+            "[red]Error: The desktop widget dependencies are not installed.[/red]"
+        )
+        console.print(
+            "To use the desktop widget, please install the extra package using:"
+        )
+        console.print(
+            "  pip install work-time-logger[widget]"
+            "  or  uv pip install work-time-logger[widget]",
+            style="green",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from err
+
+    run_widget()
+
+
 @app.command("status")
 def status(
     as_json: bool = typer.Option(

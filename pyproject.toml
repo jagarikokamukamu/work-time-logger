@@ -11,9 +11,17 @@ dependencies = [
     "typer>=0.24.1",
 ]
 
+[project.optional-dependencies]
+widget = [
+    "flet>=0.21.0",
+    "flet-desktop>=0.21.0",
+]
+
 [project.scripts]
 work-time-logger = "work_time_logger:main"
 wtl = "work_time_logger:main"
+wtlui = "work_time_logger:tui_main"
+wtl-widget = "work_time_logger.cli:widget"
 
 [build-system]
 requires = ["uv_build>=0.10.6,<0.11.0"]
@@ -28,6 +36,7 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.7",
+    "work-time-logger[widget]",
 ]
 
 [tool.bandit]
@@ -66,3 +75,6 @@ indent-style = "space"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+
+
