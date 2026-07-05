@@ -35,22 +35,25 @@ class ActiveTaskContainer(ft.Container):
             weight=ft.FontWeight.BOLD,
         )
 
-        # Small semi-transparent close button on the right edge
-        self.close_button = ft.IconButton(
-            icon=ft.Icons.CLOSE_ROUNDED,
-            icon_size=12,
+        self.close_icon = ft.Icon(
+            ft.Icons.CLOSE_ROUNDED,
+            color=ft.Colors.WHITE,
+            size=12,
+            opacity=0.3,
+            animate_opacity=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
+        )
+
+        # Use Container to smoothly transition background color
+        self.close_button = ft.Container(
+            content=self.close_icon,
             width=20,
             height=20,
-            padding=0,
+            border_radius=4,
+            bgcolor=ft.Colors.TRANSPARENT,
+            animate=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_close_hover,  # type: ignore[reportArgumentType]
             on_click=on_close_click,
             tooltip="Close Widget",
-            style=ft.ButtonStyle(
-                color={
-                    ft.ControlState.HOVERED: ft.Colors.RED,
-                    ft.ControlState.FOCUSED: ft.Colors.RED,
-                    ft.ControlState.DEFAULT: ft.Colors.WHITE_30,
-                }
-            ),
         )
 
         super().__init__(
@@ -102,3 +105,11 @@ class ActiveTaskContainer(ft.Container):
             self.time_text.color = "#ff4444"
             self.icon_idle.visible = True
             self.icon_running.visible = False
+
+    def _on_close_hover(self, e: ft.ControlEvent) -> None:
+        """Smoothly transitions color on close button hover."""
+        is_hover = e.data == "true" or e.data is True
+        self.close_icon.opacity = 1.0 if is_hover else 0.3
+        self.close_button.bgcolor = ft.Colors.RED if is_hover else ft.Colors.TRANSPARENT
+        self.close_icon.update()
+        self.close_button.update()
