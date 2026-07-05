@@ -212,3 +212,38 @@ def test_controller_monitoring_loop_no_error_on_page_update():
     assert "Error in monitoring loop" not in output, (
         f"'NoneType can't be awaited' or other error detected:\n{output}"
     )
+
+
+@patch("work_time_logger.cli.subprocess.Popen")
+def test_widget_main_detach(mock_popen, tmp_path):
+    """Test starting the widget with default detach (background) mode."""
+    from typer.testing import CliRunner
+
+    from work_time_logger import cli, db
+
+    test_db_dir = tmp_path / ".wtl_test"
+    test_db_dir.mkdir()
+    db.DB_DIR = test_db_dir
+
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["widget"])
+    assert result.exit_code == 0
+    assert "Started desktop widget in background." in result.stdout
+    mock_popen.assert_called_once()
+
+
+@patch("work_time_logger.widget.run_widget")
+def test_widget_main_wait(mock_run_widget, tmp_path):
+    """Test starting the widget with --wait option (foreground)."""
+    from typer.testing import CliRunner
+
+    from work_time_logger import cli, db
+
+    test_db_dir = tmp_path / ".wtl_test"
+    test_db_dir.mkdir()
+    db.DB_DIR = test_db_dir
+
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["widget", "--wait"])
+    assert result.exit_code == 0
+    mock_run_widget.assert_called_once()
