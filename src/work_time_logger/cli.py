@@ -849,3 +849,67 @@ def ui() -> None:
 
     wtl_app = WtlApp()
     wtl_app.run()
+
+
+@app.command("widget")
+def widget() -> None:
+    """Start the desktop widget (requires 'widget' extra)."""
+    try:
+        import flet  # type: ignore[reportMissingImports] # noqa: F401 - intentional availability check for flet
+
+        from .widget import run_widget
+    except ImportError as err:
+        console.print(
+            "[red]Error: The desktop widget dependencies are not installed.[/red]"
+        )
+        console.print(
+            "To use the desktop widget, please install the extra package using:"
+        )
+        console.print(
+            "  pip install work-time-logger[widget]"
+            "  or  uv pip install work-time-logger[widget]",
+            style="green",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from err
+
+    run_widget()
+
+
+@app.command("status")
+def status(
+    as_json: bool = typer.Option(
+        False, "--json", "-j", help="Output status in JSON format."
+    ),
+) -> None:
+    """Show the status of the currently running timer."""
+    import json
+    from datetime import datetime
+
+    active_logs = operations.get_active_logs()
+
+    if as_json:
+        console.print(json.dumps(active_logs, ensure_ascii=False))
+        return
+
+    if not active_logs:
+        console.print("Idle")
+        return
+
+    for log in active_logs:
+        p_name = log["project_name"] or "[Unassigned]"
+        j_name = log["job_name"] or "[Unassigned]"
+        start_time_str = log["start_time"]
+
+        try:
+            start_dt = datetime.fromisoformat(start_time_str)
+            elapsed = datetime.now() - start_dt
+            secs = int(elapsed.total_seconds())
+            hours = secs // 3600
+            minutes = (secs % 3600) // 60
+            seconds = secs % 60
+            time_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+        except (ValueError, TypeError):
+            time_str = "Unknown"
+
+        console.print(f"[green]Running:[/green] {p_name} / {j_name} ({time_str})")
