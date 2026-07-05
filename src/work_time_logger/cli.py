@@ -4,6 +4,9 @@ This module provides the Typer application and commands for interacting with
 the work time logger via the command line.
 """
 
+import os
+import subprocess
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -665,8 +668,6 @@ def edit_profile():
     Ensures the profile exists (creating a default one if necessary) and then
     launches the default system application associated with TOML files.
     """
-    import os
-    import subprocess
     import sys
 
     from . import exporter
@@ -851,13 +852,9 @@ def ui() -> None:
     wtl_app.run()
 
 
-@app.command("widget")
-def widget() -> None:
-    """Start the desktop widget (requires 'widget' extra)."""
+def _check_flet_dependency() -> None:
     try:
-        import flet  # type: ignore[reportMissingImports] # noqa: F401 - intentional availability check for flet
-
-        from .widget import run_widget
+        import flet  # type: ignore[reportMissingImports] # noqa: F401
     except ImportError as err:
         console.print(
             "[red]Error: The desktop widget dependencies are not installed.[/red]"
@@ -873,7 +870,75 @@ def widget() -> None:
         )
         raise typer.Exit(code=1) from err
 
-    run_widget()
+
+@app.command("widget")
+def widget(
+    wait: bool = typer.Option(
+        False,
+        "--wait",
+        "-w",
+        help="Run the widget in the foreground and wait.",
+    ),
+    detach: bool = typer.Option(
+        True,
+        "--detach",
+        "-d",
+        help="Run the widget in a detached background process (default).",
+    ),
+) -> None:
+    """Start the desktop widget (requires 'widget' extra)."""
+    _check_flet_dependency()
+
+    if wait:
+        from .widget import run_widget
+
+        run_widget()
+    else:
+        # Detach launch configuration
+        import subprocess
+        import sys
+
+        kwargs = {}
+        if sys.platform == "win32":
+            # 0x08000000 = CREATE_NO_WINDOW (prevents terminal window popup)
+            kwargs["creationflags"] = 0x08000000
+
+        kwargs["stdin"] = subprocess.DEVNULL
+        kwargs["stdout"] = subprocess.DEVNULL
+        kwargs["stderr"] = subprocess.DEVNULL
+
+        if sys.platform != "win32":
+            kwargs["start_new_session"] = True
+
+        # First, try running with the installed 'wtl' executable wrapper
+        base_cmd = ["wtl", "widget", "--wait"]
+        try:
+            subprocess.Popen(base_cmd, **kwargs)
+            console.print("[green]Started desktop widget in background.[/green]")
+        except (FileNotFoundError, Exception):
+            # Fall back to using python sys.executable + cli app entrypoint
+            executable = sys.executable
+            if sys.platform == "win32" and executable.lower().endswith("python.exe"):
+                # Use pythonw.exe to prevent terminal window popup
+                pythonw_executable = executable[:-10] + "pythonw.exe"
+                import os
+
+                if os.path.exists(pythonw_executable):
+                    executable = pythonw_executable
+
+            fallback_cmd = [
+                executable,
+                "-c",
+                "from work_time_logger.cli import app; app()",
+                "widget",
+                "--wait",
+            ]
+            try:
+                subprocess.Popen(fallback_cmd, **kwargs)
+                console.print("[green]Started desktop widget in background.[/green]")
+            except Exception as e:
+                console.print(f"[red]Error starting background widget: {e}[/red]")
+                raise typer.Exit(code=1) from e
 
 
 @app.command("status")
