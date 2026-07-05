@@ -511,3 +511,60 @@ def test_ui_command(monkeypatch):
     result = runner.invoke(cli.app, ["ui"])
     assert result.exit_code == 0
     assert mock_run.called
+
+
+def test_status_command(monkeypatch):
+    """Test that 'wtl status' prints running jobs or Idle."""
+    from unittest.mock import MagicMock
+
+    from work_time_logger import operations
+
+    # Idle状態のテスト
+    mock_get_active = MagicMock(return_value=[])
+    monkeypatch.setattr(operations, "get_active_logs", mock_get_active)
+
+    result = runner.invoke(cli.app, ["status"])
+    assert result.exit_code == 0
+    assert "Idle" in result.stdout
+
+    # Running状態のテスト
+    mock_get_active.return_value = [
+        {
+            "id": 1,
+            "project_name": "ProjectA",
+            "job_name": "JobB",
+            "start_time": "2026-07-05T03:00:00",
+            "memo": "Test memo",
+        }
+    ]
+    result = runner.invoke(cli.app, ["status"])
+    assert result.exit_code == 0
+    assert "ProjectA / JobB" in result.stdout
+
+
+def test_status_command_json(monkeypatch):
+    """Test that 'wtl status --json' prints logs in JSON format."""
+    import json
+    from unittest.mock import MagicMock
+
+    from work_time_logger import operations
+
+    mock_get_active = MagicMock(
+        return_value=[
+            {
+                "id": 1,
+                "project_name": "ProjectA",
+                "job_name": "JobB",
+                "start_time": "2026-07-05T03:00:00",
+                "memo": "Test memo",
+            }
+        ]
+    )
+    monkeypatch.setattr(operations, "get_active_logs", mock_get_active)
+
+    result = runner.invoke(cli.app, ["status", "--json"])
+    assert result.exit_code == 0
+
+    parsed = json.loads(result.stdout)
+    assert len(parsed) == 1
+    assert parsed[0]["project_name"] == "ProjectA"

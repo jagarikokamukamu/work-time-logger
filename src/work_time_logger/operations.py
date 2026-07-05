@@ -442,6 +442,28 @@ def is_any_job_running() -> bool:
         return cursor.fetchone() is not None
 
 
+def get_active_logs() -> list[dict]:
+    """Get all currently active (running) log entries.
+
+    Returns:
+        list[dict]: A list of active logs.
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT l.id, p.name as project_name, j.name as job_name,
+                   l.start_time, l.memo
+            FROM logs l
+            LEFT JOIN projects p ON l.project_id = p.id
+            LEFT JOIN jobs j ON l.job_id = j.id
+            WHERE l.end_time IS NULL
+            """
+        )
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
 def start_log(
     project_name: str | None = None,
     job_name: str | None = None,

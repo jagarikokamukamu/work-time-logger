@@ -849,3 +849,42 @@ def ui() -> None:
 
     wtl_app = WtlApp()
     wtl_app.run()
+
+
+@app.command("status")
+def status(
+    as_json: bool = typer.Option(
+        False, "--json", "-j", help="Output status in JSON format."
+    ),
+) -> None:
+    """Show the status of the currently running timer."""
+    import json
+    from datetime import datetime
+
+    active_logs = operations.get_active_logs()
+
+    if as_json:
+        console.print(json.dumps(active_logs, ensure_ascii=False))
+        return
+
+    if not active_logs:
+        console.print("Idle")
+        return
+
+    for log in active_logs:
+        p_name = log["project_name"] or "[Unassigned]"
+        j_name = log["job_name"] or "[Unassigned]"
+        start_time_str = log["start_time"]
+
+        try:
+            start_dt = datetime.fromisoformat(start_time_str)
+            elapsed = datetime.now() - start_dt
+            secs = int(elapsed.total_seconds())
+            hours = secs // 3600
+            minutes = (secs % 3600) // 60
+            seconds = secs % 60
+            time_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+        except (ValueError, TypeError):
+            time_str = "Unknown"
+
+        console.print(f"[green]Running:[/green] {p_name} / {j_name} ({time_str})")
