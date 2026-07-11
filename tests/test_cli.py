@@ -600,8 +600,36 @@ def test_status_command_watch(monkeypatch):
     assert result.exit_code == 0
 
 
-def test_status_command_watch_and_json():
-    """Test that 'wtl status --watch --json' returns error."""
+def test_status_command_watch_and_json(monkeypatch):
+    """Test that 'wtl status --watch --json' exits on KeyboardInterrupt."""
+    import json
+    import time
+    from unittest.mock import MagicMock
+
+    from work_time_logger import operations
+
+    mock_get_active = MagicMock(
+        return_value=[
+            {
+                "id": 1,
+                "project_name": "ProjectA",
+                "job_name": "JobB",
+                "start_time": "2026-07-05T03:00:00",
+                "memo": "Test memo",
+            }
+        ]
+    )
+    monkeypatch.setattr(operations, "get_active_logs", mock_get_active)
+
+    # Monkeypatch time.sleep to raise KeyboardInterrupt to exit loop immediately
+    def mock_sleep(seconds):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(time, "sleep", mock_sleep)
+
     result = runner.invoke(cli.app, ["status", "--watch", "--json"])
-    assert result.exit_code != 0
-    assert "Cannot use --watch with --json" in result.stdout
+    assert result.exit_code == 0
+
+    parsed = json.loads(result.stdout.strip())
+    assert len(parsed) == 1
+    assert parsed[0]["project_name"] == "ProjectA"
