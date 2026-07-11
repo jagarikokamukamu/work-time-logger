@@ -28,39 +28,55 @@ def test_widget_cli_command_missing_dependency():
         assert exc_info.value.exit_code == 1
 
 
-@patch("work_time_logger.widget.controller.subprocess.run")
-def test_controller_run_wtl_command_success(mock_run):
-    """Test that _run_wtl_command successfully runs and returns stdout."""
-    mock_res = MagicMock()
-    mock_res.stdout = "Running: ProjectA / JobB\n"
-    mock_run.return_value = mock_res
+@patch("asyncio.create_subprocess_exec")
+def test_controller_monitoring_loop_executes_wtl(mock_exec):
+    """Test that _monitoring_loop executes status watch and parses output."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_process = AsyncMock()
+    mock_process.terminate = MagicMock()
+    mock_process.stdout = AsyncMock()
+    mock_process.stdout.readline.side_effect = [
+        (
+            b'[{"project_name": "Proj", "job_name": "Job", '
+            b'"start_time": "2026-07-05T03:00:00"}]\n'
+        ),
+        b"",
+    ]
+    mock_exec.return_value = mock_process
+
+    class FakePage:
+        def update(self):
+            pass
+
+    class FakeUI:
+        def __init__(self):
+            self.states = []
+
+        def update_state(self, **kwargs):
+            self.states.append(kwargs)
+
+        def update(self):
+            pass
 
     controller = TaskController()
-    stdout = controller._run_wtl_command(["status"])
-    assert stdout == "Running: ProjectA / JobB"
-    mock_run.assert_called_with(
-        ["wtl", "status"], capture_output=True, text=True, check=True
+    controller.is_monitoring = True
+
+    ui = FakeUI()
+    asyncio.run(controller._monitoring_loop(FakePage(), ui))
+
+    mock_exec.assert_any_call(
+        "wtl",
+        "status",
+        "--watch",
+        "--json",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
     )
-
-
-@patch("work_time_logger.widget.controller.subprocess.run")
-def test_controller_run_wtl_command_fallback(mock_run):
-    """Test that _run_wtl_command falls back to sys.executable when 'wtl' fails."""
-    import sys
-
-    mock_res = MagicMock()
-    mock_res.stdout = "Running fallback\n"
-    mock_run.side_effect = [FileNotFoundError("wtl not found"), mock_res]
-
-    controller = TaskController()
-    stdout = controller._run_wtl_command(["status"])
-    assert stdout == "Running fallback"
-    assert mock_run.call_count == 2
-
-    # Verify fallback call args
-    fallback_args = mock_run.call_args_list[1][0][0]
-    assert fallback_args[0] == sys.executable
-    assert "work_time_logger.cli" in fallback_args[2]
+    assert len(ui.states) > 0
+    assert ui.states[0]["is_running"] is True
+    assert "Proj / Job" in ui.states[0]["job_name"]
 
 
 def test_widget_ui_initialization():
@@ -169,13 +185,20 @@ def test_widget_close_via_keyboard():
     mock_page.run_task.assert_any_call(mock_page.window.destroy)
 
 
-def test_controller_monitoring_loop_no_error_on_page_update():
-    """Verify _monitoring_loop does NOT raise 'NoneType can\'t be awaited'
+@patch("asyncio.create_subprocess_exec")
+def test_controller_monitoring_loop_no_error_on_page_update(mock_exec):
+    """Verify _monitoring_loop does NOT raise 'NoneType can't be awaited'
     when page.update() is synchronous (returns None)."""
     import asyncio
     import io
+    from unittest.mock import AsyncMock, MagicMock
 
-    from work_time_logger.widget.controller import TaskController
+    # Mock process and its stdout
+    mock_process = AsyncMock()
+    mock_process.terminate = MagicMock()
+    mock_process.stdout = AsyncMock()
+    mock_process.stdout.readline = AsyncMock(return_value=b"[]\n")
+    mock_exec.return_value = mock_process
 
     # Simulate the real Flet Page where page.update() is synchronous and returns None
     class FakePage:
@@ -194,7 +217,6 @@ def test_controller_monitoring_loop_no_error_on_page_update():
 
     controller = TaskController()
     controller.is_monitoring = True
-    controller._run_wtl_command = lambda args: "[]"
 
     # Capture print output to detect "Error in monitoring loop" messages
     captured = io.StringIO()

@@ -1,10 +1,8 @@
-"""Controller for WTL desktop widget, handling DB polling and state updates."""
+"""Controller for WTL desktop widget, handling state updates via CLI stream."""
 
 import asyncio
 import json
-import subprocess
 import sys
-import time
 from datetime import datetime
 
 
@@ -13,29 +11,7 @@ class TaskController:
 
     def __init__(self):
         self.is_monitoring = False
-
-    def _run_wtl_command(self, args: list[str]) -> str:
-        """Run wtl command and return stdout.
-
-        If 'wtl' is not in path, falls back to using sys.executable.
-        """
-        # 1. Try 'wtl' command directly
-        try:
-            res = subprocess.run(
-                ["wtl"] + args, capture_output=True, text=True, check=True
-            )
-            return res.stdout.strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-
-        # 2. Fallback to module execution in dev environments
-        try:
-            cmd = [sys.executable, "-c", "from work_time_logger.cli import app; app()"]
-            res = subprocess.run(cmd + args, capture_output=True, text=True, check=True)
-            return res.stdout.strip()
-        except Exception as e:
-            print(f"Failed to execute wtl command: {e}")
-            return ""
+        self.process = None
 
     def start_monitoring(self, page, ui_component):
         """Starts the background task to poll the CLI and update the UI."""
@@ -47,22 +23,50 @@ class TaskController:
         page.run_task(self._monitoring_loop, page, ui_component)
 
     async def _monitoring_loop(self, page, ui_component):
-        """Asynchronous loop that polls status and updates UI every second."""
-        last_sync_time = 0.0
-        active_jobs = []
-        loop = asyncio.get_running_loop()
+        """Asynchronous loop that reads CLI stream to update UI."""
+        cmd_args = ["status", "--watch", "--json"]
 
-        while self.is_monitoring:
+        try:
+            self.process = await asyncio.create_subprocess_exec(
+                "wtl",
+                *cmd_args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            # Fallback to python execution
+            python_cmd = [
+                sys.executable,
+                "-c",
+                "from work_time_logger.cli import app; app()",
+            ]
             try:
-                current_time = time.time()
+                self.process = await asyncio.create_subprocess_exec(
+                    python_cmd[0],
+                    *(python_cmd[1:] + cmd_args),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+            except Exception as e:
+                print(f"Failed to start wtl process: {e}")
+                ui_component.update_state(is_running=False)
+                ui_component.update()
+                page.update()
+                self.is_monitoring = False
+                return
 
-                # Poll status every 3 seconds off the main event loop
-                if current_time - last_sync_time >= 3.0:
-                    output = await loop.run_in_executor(
-                        None, self._run_wtl_command, ["status", "--json"]
-                    )
+        try:
+            # Read stdout line by line
+            while self.is_monitoring and self.process.stdout:
+                line = await self.process.stdout.readline()
+                if not line:
+                    break
+
+                output = line.decode("utf-8").strip()
+                try:
                     active_jobs = json.loads(output) if output else []
-                    last_sync_time = current_time
+                except json.JSONDecodeError:
+                    continue
 
                 if active_jobs:
                     job = active_jobs[0]
@@ -70,7 +74,7 @@ class TaskController:
                     job_name = job.get("job_name")
                     start_time_str = job.get("start_time")
 
-                    # Re-calculate elapsed time locally every second
+                    # Re-calculate elapsed time locally
                     start_dt = datetime.fromisoformat(start_time_str)
                     elapsed = datetime.now() - start_dt
                     secs = int(elapsed.total_seconds())
@@ -91,10 +95,16 @@ class TaskController:
                 else:
                     ui_component.update_state(is_running=False)
 
-                # Force update the component and wait for render
                 ui_component.update()
                 page.update()
-            except Exception as e:
-                print(f"Error in monitoring loop: {e}")
 
-            await asyncio.sleep(1)
+        except Exception as e:
+            print(f"Error in monitoring loop: {e}")
+        finally:
+            self.is_monitoring = False
+            if self.process:
+                try:
+                    self.process.terminate()
+                    await self.process.wait()
+                except Exception:
+                    pass
