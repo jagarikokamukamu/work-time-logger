@@ -946,10 +946,60 @@ def status(
     as_json: bool = typer.Option(
         False, "--json", "-j", help="Output status in JSON format."
     ),
+    watch: bool = typer.Option(
+        False, "--watch", "-w", help="Watch status dynamically."
+    ),
 ) -> None:
     """Show the status of the currently running timer."""
     import json
+    import time
     from datetime import datetime
+
+    from rich.console import Group
+    from rich.live import Live
+    from rich.text import Text
+
+    if as_json and watch:
+        console.print("[red]Error: Cannot use --watch with --json[/red]")
+        raise typer.Exit(code=1)
+
+    def get_renderable() -> Group | Text:
+        active_logs = operations.get_active_logs()
+        if not active_logs:
+            return Text("Idle")
+
+        lines = []
+        for log in active_logs:
+            p_name = log["project_name"] or "[Unassigned]"
+            j_name = log["job_name"] or "[Unassigned]"
+            start_time_str = log["start_time"]
+
+            try:
+                start_dt = datetime.fromisoformat(start_time_str)
+                elapsed = datetime.now() - start_dt
+                secs = int(elapsed.total_seconds())
+                hours = secs // 3600
+                minutes = (secs % 3600) // 60
+                seconds = secs % 60
+                time_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+            except (ValueError, TypeError):
+                time_str = "Unknown"
+
+            line = Text()
+            line.append("Running: ", style="green")
+            line.append(f"{p_name} / {j_name} ({time_str})")
+            lines.append(line)
+        return Group(*lines)
+
+    if watch:
+        try:
+            with Live(get_renderable(), console=console, auto_refresh=False) as live:
+                while True:
+                    time.sleep(1)
+                    live.update(get_renderable(), refresh=True)
+        except KeyboardInterrupt:
+            pass
+        return
 
     active_logs = operations.get_active_logs()
 
@@ -977,4 +1027,7 @@ def status(
         except (ValueError, TypeError):
             time_str = "Unknown"
 
-        console.print(f"[green]Running:[/green] {p_name} / {j_name} ({time_str})")
+        line = Text()
+        line.append("Running: ", style="green")
+        line.append(f"{p_name} / {j_name} ({time_str})")
+        console.print(line)
