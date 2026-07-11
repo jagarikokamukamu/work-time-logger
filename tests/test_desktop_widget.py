@@ -66,13 +66,16 @@ def test_controller_monitoring_loop_executes_wtl(mock_exec):
     ui = FakeUI()
     asyncio.run(controller._monitoring_loop(FakePage(), ui))
 
+    from unittest.mock import ANY
+
     mock_exec.assert_any_call(
         "wtl",
         "status",
         "--watch",
         "--json",
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
+        stderr=ANY,
+        env=ANY,
     )
     assert len(ui.states) > 0
     assert ui.states[0]["is_running"] is True

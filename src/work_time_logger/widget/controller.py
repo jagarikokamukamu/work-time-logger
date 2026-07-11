@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime
 
@@ -26,17 +27,23 @@ class TaskController:
         """Asynchronous loop that reads CLI stream to update UI."""
         cmd_args = ["status", "--watch", "--json"]
 
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+
         try:
             self.process = await asyncio.create_subprocess_exec(
                 "wtl",
                 *cmd_args,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=sys.stderr,
+                env=env,
             )
         except FileNotFoundError:
-            # Fallback to python execution
+            # Fallback to python execution with unbuffered flag -u
             python_cmd = [
                 sys.executable,
+                "-u",
                 "-c",
                 "from work_time_logger.cli import app; app()",
             ]
@@ -45,7 +52,8 @@ class TaskController:
                     python_cmd[0],
                     *(python_cmd[1:] + cmd_args),
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.DEVNULL,
+                    stderr=sys.stderr,
+                    env=env,
                 )
             except Exception as e:
                 print(f"Failed to start wtl process: {e}")
@@ -62,7 +70,7 @@ class TaskController:
                 if not line:
                     break
 
-                output = line.decode("utf-8").strip()
+                output = line.decode("utf-8", errors="replace").strip()
                 try:
                     active_jobs = json.loads(output) if output else []
                 except json.JSONDecodeError:
