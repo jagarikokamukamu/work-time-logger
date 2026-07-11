@@ -959,9 +959,16 @@ def status(
     from rich.live import Live
     from rich.text import Text
 
-    if as_json and watch:
-        console.print("[red]Error: Cannot use --watch with --json[/red]")
-        raise typer.Exit(code=1)
+    if watch and as_json:
+        try:
+            while True:
+                active_logs = operations.get_active_logs()
+                # Print directly to stdout ensuring single-line output per state update
+                print(json.dumps(active_logs, ensure_ascii=False), flush=True)
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        return
 
     def get_renderable() -> Group | Text:
         active_logs = operations.get_active_logs()
