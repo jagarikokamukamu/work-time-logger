@@ -943,7 +943,7 @@ wheels = [
 
 [[package]]
 name = "work-time-logger"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
