@@ -68,7 +68,7 @@ class ActiveTaskContainer(ft.Container):
                                 [self.icon_idle, self.icon_running],
                                 width=24,
                                 height=24,
-                              ),
+                            ),
                             ft.Column(
                                 [self.job_text, self.time_text],
                                 spacing=1,
@@ -121,4 +121,3 @@ class ActiveTaskContainer(ft.Container):
         self.close_button.bgcolor = ft.Colors.RED if is_hover else ft.Colors.TRANSPARENT
         self.close_icon.update()
         self.close_button.update()
-

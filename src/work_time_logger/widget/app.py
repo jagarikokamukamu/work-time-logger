@@ -80,9 +80,6 @@ async def main(page: ft.Page):
         except Exception:
             pass
 
-
-
-
     # Keyboard shortcut for close (Esc / Q)
     def handle_keyboard(e):
         if e.key in ("Escape", "Q", "q"):
@@ -103,4 +100,3 @@ async def main(page: ft.Page):
 
     # Start background animation loop
     page.run_task(animate_background)
-
