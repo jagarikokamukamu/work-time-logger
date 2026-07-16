@@ -295,11 +295,19 @@ class WtlApp(App):
         try:
             cursor_coord = self.logs_table.cursor_coordinate
             scroll_x, scroll_y = self.logs_table.scroll_offset
-        except (AttributeError, ValueError):
+            selected_log_id = None
+            if (
+                cursor_coord
+                and hasattr(self, "logs")
+                and cursor_coord.row < len(self.logs)
+            ):
+                selected_log_id = self.logs[cursor_coord.row]["id"]
+        except (AttributeError, ValueError, IndexError):
             # If the table is not yet fully initialized or populated,
             # these lookups might fail. We default to (0,0) in such cases.
             cursor_coord = None
             scroll_x, scroll_y = 0, 0
+            selected_log_id = None
 
         # Preserve expanded state of project nodes
         # If the tree is empty (initial load), we'll default to expanding everything.
@@ -451,9 +459,16 @@ class WtlApp(App):
             )
 
         if cursor_coord:
+            target_row = cursor_coord.row
+            if selected_log_id is not None:
+                for idx, log_entry in enumerate(self.logs):
+                    if log_entry["id"] == selected_log_id:
+                        target_row = idx
+                        break
+
             try:
                 self.logs_table.move_cursor(
-                    row=cursor_coord.row,
+                    row=target_row,
                     column=cursor_coord.column,
                     animate=False,
                 )
