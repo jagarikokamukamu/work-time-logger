@@ -56,6 +56,9 @@ class ActiveTaskContainer(ft.Container):
             tooltip="Close Widget",
         )
 
+        # Track whether the widget is in idle (no active job) state.
+        self.is_idle = True
+
         super().__init__(
             content=ft.Row(
                 [
@@ -65,7 +68,7 @@ class ActiveTaskContainer(ft.Container):
                                 [self.icon_idle, self.icon_running],
                                 width=24,
                                 height=24,
-                            ),
+                              ),
                             ft.Column(
                                 [self.job_text, self.time_text],
                                 spacing=1,
@@ -94,6 +97,10 @@ class ActiveTaskContainer(ft.Container):
     def update_state(self, is_running: bool, job_name: str = "", time_str: str = ""):
         """Update visual state based on the active tracking status."""
         if is_running:
+            self.is_idle = False
+            self.gradient = None
+            self.bgcolor = "#121214e6"
+
             self.job_text.value = job_name
             self.time_text.value = time_str
             self.time_text.color = ft.Colors.WHITE_70
@@ -102,9 +109,10 @@ class ActiveTaskContainer(ft.Container):
         else:
             self.job_text.value = "Idle"
             self.time_text.value = "No active job"
-            self.time_text.color = "#ff4444"
+            self.time_text.color = ft.Colors.WHITE_70
             self.icon_idle.visible = True
             self.icon_running.visible = False
+            self.is_idle = True
 
     def _on_close_hover(self, e: ft.ControlEvent) -> None:
         """Smoothly transitions color on close button hover."""
@@ -113,3 +121,4 @@ class ActiveTaskContainer(ft.Container):
         self.close_button.bgcolor = ft.Colors.RED if is_hover else ft.Colors.TRANSPARENT
         self.close_icon.update()
         self.close_button.update()
+
