@@ -99,12 +99,24 @@ def start(
     force: bool = typer.Option(
         False, "--force", "-f", help="Force start even if another job is running."
     ),
+    switch: bool = typer.Option(
+        False,
+        "--switch",
+        "-s",
+        help="Stop any currently running job and switch to this new job.",
+    ),
 ):
     """Start tracking a job.
 
     Begins a new log entry. You must either provide both a project and job name,
     or use the --unassigned flag to start a timer without an immediate assignment.
     """
+    if force and switch:
+        console.print(
+            "[red]Error: Cannot use both --force and --switch at the same time.[/red]"
+        )
+        raise typer.Exit(1)
+
     if not unassigned and (not project_name or not job_name):
         console.print(
             "[red]Error: You must provide a project and job name, "
@@ -115,7 +127,12 @@ def start(
     try:
         p_name = None if unassigned else project_name
         j_name = None if unassigned else job_name
-        operations.start_log(p_name, j_name, force_parallel=force)
+        active_before = operations.get_active_logs() if switch else []
+        operations.start_log(p_name, j_name, force_parallel=force, switch=switch)
+
+        if active_before:
+            count = len(active_before)
+            console.print(f"[yellow]Stopped {count} previous running job(s).[/yellow]")
 
         if unassigned:
             console.print(
@@ -130,7 +147,8 @@ def start(
         if "already running" in error_msg:
             console.print(
                 f"[red]Error: {error_msg}[/red] "
-                "[yellow]Use --force or -f to start a parallel tracker.[/yellow]"
+                "[yellow]Use --force or -f to start parallel, "
+                "or --switch or -s to switch.[/yellow]"
             )
         else:
             console.print(f"[red]Error: {error_msg}[/red]")

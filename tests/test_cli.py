@@ -109,6 +109,63 @@ def test_start_fail_without_unassigned_flag():
     assert "You must provide a project and job name" in result.stdout
 
 
+def test_start_switch_unassigned_cli():
+    # Setup and start a job
+    runner.invoke(cli.app, ["project", "add", "-p", "Switch Proj"])
+    runner.invoke(cli.app, ["job", "add", "-j", "Switch Job", "-p", "Switch Proj"])
+    runner.invoke(cli.app, ["start", "-p", "Switch Proj", "-j", "Switch Job"])
+
+    # Switch to unassigned using -u -s
+    result = runner.invoke(cli.app, ["start", "-u", "-s"])
+    assert result.exit_code == 0
+    assert "Stopped 1 previous running job(s)." in result.stdout
+    assert "Started tracking an unassigned job" in result.stdout
+
+    # Verify: first job is stopped, unassigned job is running
+    logs = operations.list_logs()
+    assert len(logs) == 2
+    assigned_log = next(item for item in logs if item["project_name"] == "Switch Proj")
+    unassigned_log = next(item for item in logs if item["project_name"] is None)
+    assert assigned_log["end_time"] is not None
+    assert unassigned_log["end_time"] is None
+    assert assigned_log["end_time"] == unassigned_log["start_time"]
+
+
+def test_start_switch_job_cli():
+    # Setup
+    runner.invoke(cli.app, ["project", "add", "-p", "P_Switch"])
+    runner.invoke(cli.app, ["job", "add", "-j", "J1", "-p", "P_Switch"])
+    runner.invoke(cli.app, ["job", "add", "-j", "J2", "-p", "P_Switch"])
+
+    # Start J1
+    runner.invoke(cli.app, ["start", "-p", "P_Switch", "-j", "J1"])
+
+    # Switch to J2
+    result = runner.invoke(cli.app, ["start", "-p", "P_Switch", "-j", "J2", "--switch"])
+    assert result.exit_code == 0
+    assert "Stopped 1 previous running job(s)." in result.stdout
+    assert "Started tracking 'J2' in 'P_Switch'" in result.stdout
+
+    # Verify
+    logs = operations.list_logs()
+    j1_log = next(item for item in logs if item["job_name"] == "J1")
+    j2_log = next(item for item in logs if item["job_name"] == "J2")
+    assert j1_log["end_time"] is not None
+    assert j2_log["end_time"] is None
+
+
+def test_start_switch_validation_cli():
+    # --switch without -u or -p/-j should fail validation
+    result = runner.invoke(cli.app, ["start", "-s"])
+    assert result.exit_code == 1
+    assert "You must provide a project and job name" in result.stdout
+
+    # Both --force and --switch should fail
+    result2 = runner.invoke(cli.app, ["start", "-u", "-f", "-s"])
+    assert result2.exit_code == 1
+    assert "Cannot use both --force and --switch at the same time" in result2.stdout
+
+
 def test_job_import(tmp_path):
     runner.invoke(cli.app, ["project", "add", "-p", "Import Project"])
     csv_file = tmp_path / "jobs.csv"
