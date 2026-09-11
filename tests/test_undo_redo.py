@@ -142,3 +142,37 @@ def test_history_rotation():
         groups = cursor.fetchall()
         # Rotation should keep it to exactly 30 groups
         assert len(groups) == 30
+
+
+def test_undo_redo_start_log_switch():
+    # 1. Start initial log
+    log_1 = operations.start_log(memo="Job 1")
+
+    # 2. Switch to second log
+    log_2 = operations.start_log(memo="Job 2", switch=True)
+
+    logs = operations.list_logs()
+    l1 = next(entry for entry in logs if entry["id"] == log_1)
+    l2 = next(entry for entry in logs if entry["id"] == log_2)
+    assert l1["end_time"] is not None
+    assert l2["end_time"] is None
+
+    # 3. Undo the switch: log_2 should be deleted, log_1 should be running again
+    undone = operations.undo()
+    assert len(undone) == 2  # Deleted log_2 + Reverted updates to log_1
+
+    logs = operations.list_logs()
+    assert len(logs) == 1
+    assert logs[0]["id"] == log_1
+    assert logs[0]["end_time"] is None
+
+    # 4. Redo the switch: log_1 should be stopped, log_2 restored and running
+    redone = operations.redo()
+    assert len(redone) == 2
+
+    logs = operations.list_logs()
+    assert len(logs) == 2
+    l1_after = next(entry for entry in logs if entry["id"] == log_1)
+    l2_after = next(entry for entry in logs if entry["id"] == log_2)
+    assert l1_after["end_time"] is not None
+    assert l2_after["end_time"] is None

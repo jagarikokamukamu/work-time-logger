@@ -85,6 +85,37 @@ def test_allow_double_start_with_force_parallel():
     assert len(running) == 2
 
 
+def test_start_log_with_switch():
+    log_1 = operations.start_log()
+    log_2 = operations.start_log(switch=True)
+    assert log_1 != log_2
+
+    logs = operations.list_logs()
+    log_1_entry = next(log for log in logs if log["id"] == log_1)
+    log_2_entry = next(log for log in logs if log["id"] == log_2)
+
+    # log_1 should be stopped, log_2 should be running
+    assert log_1_entry["end_time"] is not None
+    assert log_2_entry["end_time"] is None
+    # end_time of log_1 must equal start_time of log_2
+    assert log_1_entry["end_time"] == log_2_entry["start_time"]
+
+
+def test_start_log_with_switch_when_idle():
+    log_id = operations.start_log(switch=True)
+    logs = operations.list_logs()
+    assert len(logs) == 1
+    assert logs[0]["id"] == log_id
+    assert logs[0]["end_time"] is None
+
+
+def test_start_log_conflict_force_and_switch():
+    with pytest.raises(
+        ValueError, match="Cannot use both force_parallel and switch at the same time"
+    ):
+        operations.start_log(force_parallel=True, switch=True)
+
+
 def test_stop_specific_log():
     log_1 = operations.start_log()
     log_2 = operations.start_log(force_parallel=True)

@@ -469,6 +469,7 @@ def start_log(
     job_name: str | None = None,
     memo: str = "",
     force_parallel: bool = False,
+    switch: bool = False,
 ) -> int:
     """Start tracking a job, optionally leaving it unassigned.
 
@@ -478,22 +479,28 @@ def start_log(
         memo (str, optional): A memo/description for the log entry. Defaults to "".
         force_parallel (bool, optional): If True, allows starting a new job even if
             another job is already running. Defaults to False.
+        switch (bool, optional): If True, stops any currently running job(s) before
+            starting the new job. Defaults to False.
 
     Returns:
         int: The ID of the newly created log entry.
 
     Raises:
-        ValueError: If a job is already running and force_parallel is False,
-            or if the project/job names are not found.
+        ValueError: If force_parallel and switch are both True, or if a job is already
+            running and neither force_parallel nor switch is True, or if the
+            project/job names are not found.
     """
+    if force_parallel and switch:
+        raise ValueError("Cannot use both force_parallel and switch at the same time.")
+
     with get_connection() as conn:
         cursor = conn.cursor()
 
         # Check if already running
-        if not force_parallel:
-            cursor.execute("SELECT id FROM logs WHERE end_time IS NULL")
-            if cursor.fetchone():
-                raise ValueError("A job is already running! Please stop it first.")
+        cursor.execute("SELECT id FROM logs WHERE end_time IS NULL")
+        running_rows = cursor.fetchall()
+        if running_rows and not force_parallel and not switch:
+            raise ValueError("A job is already running! Please stop it first.")
 
         p_id = None
         j_id = None
@@ -518,6 +525,25 @@ def start_log(
             j_id = j_res["id"]
 
         now = datetime.now().replace(microsecond=0).isoformat()
+        group_id = str(uuid.uuid4())
+
+        # If switch is True, stop all currently running jobs
+        if switch and running_rows:
+            for row in running_rows:
+                before_data = _get_log_as_dict(cursor, row["id"])
+                cursor.execute(
+                    "UPDATE logs SET end_time = ? WHERE id = ?", (now, row["id"])
+                )
+                after_data = _get_log_as_dict(cursor, row["id"])
+                _record_history(
+                    cursor,
+                    group_id,
+                    "UPDATE",
+                    row["id"],
+                    before_data=before_data,
+                    after_data=after_data,
+                )
+
         cursor.execute(
             "INSERT INTO logs (project_id, job_id, start_time, memo) "
             "VALUES (?, ?, ?, ?)",
@@ -528,7 +554,6 @@ def start_log(
             raise RuntimeError("Failed to start log")
 
         after_data = _get_log_as_dict(cursor, log_id)
-        group_id = str(uuid.uuid4())
         _record_history(
             cursor, group_id, "INSERT", log_id, before_data=None, after_data=after_data
         )
