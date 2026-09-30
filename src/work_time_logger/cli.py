@@ -862,11 +862,15 @@ def set_profile_value(
 
 
 @app.command("ui")
-def ui() -> None:
+def ui(
+    watch: bool = typer.Option(
+        False, "--watch", "-w", help="Automatically refresh UI when database changes."
+    ),
+) -> None:
     """Start the interactive Textual user interface."""
     from .tui import WtlApp
 
-    wtl_app = WtlApp()
+    wtl_app = WtlApp(watch=watch)
     wtl_app.run()
 
 

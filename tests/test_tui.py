@@ -1,5 +1,6 @@
 """Unit tests for the Textual TUI using pytest and textual.testing."""
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -523,3 +524,65 @@ async def test_tui_parallel_clone():
             (str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2])) for i in range(3)
         ]
         assert ("CloneProj", "CloneJobB") in proj_jobs
+
+
+@pytest.mark.asyncio
+async def test_refresh_view():
+    """Test that pressing ctrl+r refreshes data from the database."""
+    operations.add_project("RefreshProj")
+    operations.add_job("RefreshJob", "RefreshProj")
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        assert table.row_count == 0
+
+        # Add a log directly via operations (simulating external update)
+        operations.start_log("RefreshProj", "RefreshJob")
+        operations.stop_all_logs()
+
+        # Before refresh, table is still 0
+        assert table.row_count == 0
+
+        # Press Ctrl+r to refresh
+        await pilot.press("ctrl+r")
+        await pilot.pause(0.1)
+
+        # After refresh, table should reflect the newly added log
+        assert table.row_count == 1
+        row = table.get_row_at(0)
+        assert str(row[1]) == "RefreshProj"
+        assert str(row[2]) == "RefreshJob"
+
+
+@pytest.mark.asyncio
+async def test_tui_watch_mode():
+    """Test that watch mode automatically refreshes data when the database changes."""
+    import asyncio
+    import time
+
+    operations.add_project("WatchProj")
+    operations.add_job("WatchJob", "WatchProj")
+
+    app = WtlApp(watch=True)
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        assert table.row_count == 0
+
+        # Simulate external database update
+        operations.start_log("WatchProj", "WatchJob")
+        operations.stop_all_logs()
+
+        # Update mtime explicitly in case the filesystem resolution is coarse
+        current_mtime = time.time() + 2.0
+        os.utime(db.DB_PATH, (current_mtime, current_mtime))
+
+        # Wait for the watch interval (1.0s) to trigger
+        await asyncio.sleep(1.2)
+        await pilot.pause()
+
+        # Table should be automatically refreshed
+        assert table.row_count == 1
+        row = table.get_row_at(0)
+        assert str(row[1]) == "WatchProj"
+        assert str(row[2]) == "WatchJob"

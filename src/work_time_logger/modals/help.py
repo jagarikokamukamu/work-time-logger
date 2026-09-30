@@ -33,6 +33,7 @@ class HelpModal(BaseModal):
                 "  v       : View Daily Summary (aggregates hours)\n"
                 "  d       : View Dashboard (Weekly/Monthly charts)\n"
                 "  f       : Filter logs by Project, Job, or Date Range\n"
+                "  ctrl+r  : Refresh view / reload data\n"
                 "\nSidebar Focus (Projects & Jobs):\n"
                 "  enter   : Start selected job\n"
                 "  a       : Add log pre-assigned to selected job\n"
