@@ -196,6 +196,7 @@ class WtlApp(App):
         Binding("h", "show_help", "Help", show=True),
         Binding("ctrl+z", "undo", "Undo", show=True),
         Binding("ctrl+y", "redo", "Redo", show=True),
+        Binding("ctrl+r", "refresh_view", "Refresh", show=True),
         # Hidden commands
         Binding("q", "quit", "Quit", show=False),
         Binding("f1", "show_help", "Help", show=False),
@@ -917,6 +918,13 @@ class WtlApp(App):
                 self.notify(f"Redo successful! Redid: {actions_str}", title="Redo")
             else:
                 self.notify("Nothing to redo.", severity="warning")
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
+
+    def action_refresh_view(self) -> None:
+        """Action handler to manually refresh application data."""
+        try:
+            self.refresh_data()
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 

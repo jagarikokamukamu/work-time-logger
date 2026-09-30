@@ -523,3 +523,32 @@ async def test_tui_parallel_clone():
             (str(table.get_row_at(i)[1]), str(table.get_row_at(i)[2])) for i in range(3)
         ]
         assert ("CloneProj", "CloneJobB") in proj_jobs
+
+
+@pytest.mark.asyncio
+async def test_refresh_view():
+    """Test that pressing ctrl+r refreshes data from the database."""
+    operations.add_project("RefreshProj")
+    operations.add_job("RefreshJob", "RefreshProj")
+
+    app = WtlApp()
+    async with app.run_test(size=(120, 60)) as pilot:
+        table = app.query_one(DataTable)
+        assert table.row_count == 0
+
+        # Add a log directly via operations (simulating external update)
+        operations.start_log("RefreshProj", "RefreshJob")
+        operations.stop_all_logs()
+
+        # Before refresh, table is still 0
+        assert table.row_count == 0
+
+        # Press Ctrl+r to refresh
+        await pilot.press("ctrl+r")
+        await pilot.pause(0.1)
+
+        # After refresh, table should reflect the newly added log
+        assert table.row_count == 1
+        row = table.get_row_at(0)
+        assert str(row[1]) == "RefreshProj"
+        assert str(row[2]) == "RefreshJob"
