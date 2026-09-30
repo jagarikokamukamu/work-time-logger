@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 import traceback
 from datetime import date, datetime, timedelta
@@ -205,13 +206,16 @@ class WtlApp(App):
         Binding("Z", "toggle_show_archived", "Toggle Archived", show=True),
     ]
 
-    def __init__(self, **kwargs):
+    def __init__(self, watch: bool = False, **kwargs):
         """Initializes the Work Time Logger application.
 
         Args:
+            watch: Whether to automatically refresh UI on database changes.
             **kwargs: Standard Textual App keyword arguments.
         """
         super().__init__(**kwargs)
+        self.watch_mode = watch
+        self.last_db_mtime = self._get_db_mtime()
         self.filter_project = None
         self.filter_job = None
         self.filter_date_start = None
@@ -240,6 +244,7 @@ class WtlApp(App):
                     self.favorite_style = tui_cfg.get(
                         "favorite_style", self.favorite_style
                     )
+                    self.watch_mode = tui_cfg.get("watch", self.watch_mode)
         except (OSError, tomllib.TOMLDecodeError):
             # Profile is optional; if missing or broken, TUI will use defaults.
             pass
@@ -285,6 +290,34 @@ class WtlApp(App):
         overlay.can_focus = False
         overlay.duration_step = self.duration_step
         self.logs_table.focus()
+
+        if self.watch_mode:
+            self.set_interval(1.0, self._check_db_update)
+
+    def _get_db_mtime(self) -> float:
+        """Returns the modification time of the SQLite database file."""
+        try:
+            if db.DB_PATH.exists():
+                return os.path.getmtime(db.DB_PATH)
+        except OSError:
+            pass
+        return 0.0
+
+    def _check_db_update(self) -> None:
+        """Check if the database has been modified externally and refresh."""
+        try:
+            overlay = self.query_one("#edit-overlay", OverlayInput)
+            if overlay.display:
+                return
+        except Exception:
+            pass
+
+        if len(self.screen_stack) > 1:
+            return
+
+        current_mtime = self._get_db_mtime()
+        if current_mtime > self.last_db_mtime:
+            self.refresh_data()
 
     def refresh_data(self) -> None:
         """Refreshes all data displayed in the application.
@@ -482,6 +515,8 @@ class WtlApp(App):
         except (ValueError, IndexError):
             # Scroll target might no longer be reachable.
             pass
+
+        self.last_db_mtime = self._get_db_mtime()
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handles the `Tree.NodeSelected` event for the ProjectsTree.
