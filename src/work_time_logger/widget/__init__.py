@@ -10,4 +10,4 @@ def run_widget():
 
     from .app import main
 
-    ft.app(target=main)
+    ft.run(main)
