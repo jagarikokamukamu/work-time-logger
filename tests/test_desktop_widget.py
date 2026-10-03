@@ -272,3 +272,18 @@ def test_widget_main_wait(mock_run_widget, tmp_path):
     result = runner.invoke(cli.app, ["widget", "--wait"])
     assert result.exit_code == 0
     mock_run_widget.assert_called_once()
+
+
+def test_run_widget():
+    """Test that run_widget calls ft.run with main."""
+    import sys
+    from unittest.mock import MagicMock
+
+    mock_flet = MagicMock()
+    mock_flet.run = MagicMock()
+
+    with patch.dict(sys.modules, {"flet": mock_flet}):
+        from work_time_logger.widget import app, run_widget
+
+        run_widget()
+        mock_flet.run.assert_called_once_with(app.main)

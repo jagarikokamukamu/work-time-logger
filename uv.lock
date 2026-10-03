@@ -972,8 +972,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flet", marker = "extra == 'widget'", specifier = ">=0.21.0" },
-    { name = "flet-desktop", marker = "extra == 'widget'", specifier = ">=0.21.0" },
+    { name = "flet", marker = "extra == 'widget'", specifier = ">=0.85.0" },
+    { name = "flet-desktop", marker = "extra == 'widget'", specifier = ">=0.85.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "textual", specifier = ">=8.0.2" },
     { name = "tomlkit", specifier = ">=0.12.4" },
